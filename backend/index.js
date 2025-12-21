@@ -17,7 +17,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // CORS configuration
-const FRONTEND_URL = "https://ai-virtual-assistant-newfrontend.onrender.com";
+const FRONTEND_URL = "https://ai-virtual-assistant-vjek.onrender.com";
 
 app.use(
   cors({
