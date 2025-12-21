@@ -24,8 +24,9 @@ const FRONTEND_URL = [
 
 app.use(
   cors({
-    origin: FRONTEND_URL,
-    credentials: true,
+    process.env.NODE_ENV === "production"
+    ? "https://ai-virtual-assistantkh.onrender.com"
+    : "http://localhost:5173",
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
   })
