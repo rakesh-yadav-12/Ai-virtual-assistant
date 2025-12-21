@@ -17,24 +17,23 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // CORS configuration
-const FRONTEND_URL = [
-  "http://localhost:5173",
-  "https://ai-virtual.onrender.com"
+const allowedOrigins = [
+  "http://localhost:5173",          // local dev
+  "https://ai-virtual.onrender.com" // production frontend
 ];
 
-app.use(
-  cors({
-    process.env.NODE_ENV === "production"
-    ? "https://ai-virtual.onrender.com"
-    : "http://localhost:5173",
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-  })
-);
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("CORS not allowed"));
+    }
+  },
+  credentials: true
+}));
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(cookieParser());
+app.options("*", cors());
 
 // Static files
 app.use("/public", express.static(path.join(__dirname, "public")));
