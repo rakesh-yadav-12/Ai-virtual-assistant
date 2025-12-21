@@ -7,7 +7,7 @@ export const userDataContext = createContext();
 const serverUrl = "https://ai-virtual-assistant-8b.onrender.com";
 
 axios.defaults.withCredentials = true;
-axios.defaults.timeout = 30000;
+
 
 function UserContextProvider({ children }) {
   const [userData, setUserData] = useState(null);
