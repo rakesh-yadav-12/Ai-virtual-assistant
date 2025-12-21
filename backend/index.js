@@ -19,13 +19,13 @@ const __dirname = path.dirname(__filename);
 // CORS configuration
 const FRONTEND_URL = [
   "http://localhost:5173",
-  "https://ai-virtual-assistantkh.onrender.com"
+  "https://ai-virtual.onrender.com"
 ];
 
 app.use(
   cors({
     process.env.NODE_ENV === "production"
-    ? "https://ai-virtual-assistantkh.onrender.com"
+    ? "https://ai-virtual.onrender.com"
     : "http://localhost:5173",
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
