@@ -18,7 +18,7 @@ const __dirname = path.dirname(__filename);
 
 // CORS configuration
 const allowedOrigins = [
-  "http://localhost:5173",          // local dev
+  
   "https://ai-virtual.onrender.com" // production frontend
 ];
 
