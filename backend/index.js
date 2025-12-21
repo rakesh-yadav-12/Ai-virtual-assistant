@@ -19,7 +19,7 @@ const __dirname = path.dirname(__filename);
 // CORS configuration
 const allowedOrigins = [
   
-  "https://ai-virtual.onrender.com" // production frontend
+  "https://ai-virtual-assistant-8f.onrender.com" // production frontend
 ];
 
 app.use(cors({
