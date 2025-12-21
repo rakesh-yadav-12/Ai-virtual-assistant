@@ -4,7 +4,7 @@ import axios from "axios";
 export const userDataContext = createContext();
 
 // Fixed the serverUrl assignment - added proper quotes
-const serverUrl = "https://ai-virtual-assistant-8b.onrender.com";
+const serverUrl = "https://ai-virtual-assistant-9b.onrender.com";
 
 axios.defaults.withCredentials = true;
 
