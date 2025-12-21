@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { userDataContext } from "../context/userContext.jsx";
+import { userDataContext } from "../context/UserContext.jsx";
 
 function Home() {
   const { userData, getGeminiResponse, logout, getStats, getHistory, getShortcuts } = useContext(userDataContext);
