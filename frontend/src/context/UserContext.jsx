@@ -7,6 +7,7 @@ export const userDataContext = createContext();
 const serverUrl = "https://ai-virtual-assistant-9b.onrender.com";
 
 axios.defaults.withCredentials = true;
+axios.defaults.baseURL = serverUrl;
 
 
 function UserContextProvider({ children }) {
