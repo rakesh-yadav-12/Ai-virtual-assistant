@@ -1,16 +1,10 @@
-import React, {
-  createContext,
-  useState,
-  useEffect,
-  useCallback
-} from "react";
+import React, { createContext, useState, useEffect, useCallback } from "react";
 import axios from "axios";
 
-export const userDataContext = createContext(null);
+export const userDataContext = createContext();
 
-const serverUrl =
-  import.meta.env.VITE_API_URL ||
-  "https://ai-virtual-assistant-backend-8epx.onrender.com";
+// Fixed the serverUrl assignment - added proper quotes
+const serverUrl = import.meta.env.VITE_API_URL || "https://ai-virtual-assistant-backend-8epx.onrender.com";
 
 axios.defaults.withCredentials = true;
 axios.defaults.timeout = 30000;
@@ -20,19 +14,19 @@ function UserContextProvider({ children }) {
   const [loadingUser, setLoadingUser] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // ✅ Check authentication
+  // Check authentication status
   const checkAuth = useCallback(async () => {
     try {
       setLoadingUser(true);
-      const res = await axios.get(`${serverUrl}/api/user/current`);
-
-      if (res.data) {
-        setUserData(res.data);
+      const response = await axios.get(`${serverUrl}/api/user/current`);
+      
+      if (response.data) {
+        setUserData(response.data);
         setIsAuthenticated(true);
-        return res.data;
+        return response.data;
       }
-    } catch (err) {
-      console.log("Not authenticated:", err.response?.status || err.message);
+    } catch (error) {
+      console.log("Not authenticated:", error.response?.status || error.message);
       setUserData(null);
       setIsAuthenticated(false);
     } finally {
@@ -41,109 +35,145 @@ function UserContextProvider({ children }) {
     return null;
   }, []);
 
-  // ✅ Gemini / Assistant request
+  // Get Gemini response with enhanced error handling
   const getGeminiResponse = useCallback(async (command) => {
     if (!command || typeof command !== "string") {
       return {
         type: "error",
+        userInput: command,
         response: "Please provide a valid command",
+        searchQuery: null,
+        action: null,
+        parameters: {},
+        actionUrl: null,
+        requiresAction: false,
         timestamp: new Date().toISOString()
       };
     }
 
     try {
-      const res = await axios.post(
+      const response = await axios.post(
         `${serverUrl}/api/user/ask`,
         { command },
         { withCredentials: true }
       );
-
-      return res.data;
+      
+      return response.data;
     } catch (error) {
-      console.error("Assistant error:", error);
-
+      console.error("Assistant error:", {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+      
+      // Handle specific errors
       if (error.response?.status === 401) {
         setUserData(null);
         setIsAuthenticated(false);
         return {
           type: "auth_error",
-          response: "Please log in again.",
+          userInput: command,
+          response: "Please log in again to continue.",
+          searchQuery: null,
+          action: null,
+          parameters: {},
+          actionUrl: null,
+          requiresAction: false,
           timestamp: new Date().toISOString()
         };
       }
-
+      
       if (error.response?.status === 429) {
         return {
           type: "quota_error",
-          response: "Service busy. Try again shortly.",
+          userInput: command,
+          response: "Service is currently busy. Please try again in a moment.",
+          searchQuery: null,
+          action: null,
+          parameters: {},
+          actionUrl: null,
+          requiresAction: false,
           timestamp: new Date().toISOString()
         };
       }
-
+      
       return {
         type: "error",
-        response: "Connection issue. Please try again.",
+        userInput: command,
+        response: "I'm having trouble connecting. Please check your internet and try again.",
+        searchQuery: null,
+        action: null,
+        parameters: {},
+        actionUrl: null,
+        requiresAction: false,
         timestamp: new Date().toISOString()
       };
     }
   }, []);
 
-  // ✅ Update preferences
+  // Update user preferences
   const updatePreferences = useCallback(async (preferences) => {
     try {
-      const res = await axios.post(
+      const response = await axios.post(
         `${serverUrl}/api/user/update`,
         { preferences },
         { withCredentials: true }
       );
-
-      if (res.data?.user) {
-        setUserData(res.data.user);
+      
+      if (response.data.user) {
+        setUserData(response.data.user);
       }
-
-      return res.data;
-    } catch (err) {
-      console.error("Update preferences error:", err);
+      
+      return response.data;
+    } catch (error) {
+      console.error("Update preferences error:", error);
       return null;
     }
   }, []);
 
-  // ✅ Logout
+  // Logout function
   const logout = useCallback(async () => {
     try {
       await axios.post(`${serverUrl}/api/auth/logout`, {}, { withCredentials: true });
-    } catch (err) {
-      console.error("Logout error:", err);
+    } catch (error) {
+      console.error("Logout error:", error);
     } finally {
       setUserData(null);
       setIsAuthenticated(false);
-      localStorage.clear();
+      // Clear localStorage on logout
+      localStorage.removeItem('selectedAssistantImage');
+      localStorage.removeItem('customAssistantImages');
+      localStorage.removeItem('selectedImageIndex');
     }
   }, []);
 
+  // Initialize
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
 
+  const value = {
+    serverUrl,
+    userData,
+    setUserData,
+    loadingUser,
+    isAuthenticated,
+    checkAuth,
+    getGeminiResponse,
+    updatePreferences,
+    logout,
+    updateUserImage: (imageUrl) => {
+      if (userData) {
+        setUserData({
+          ...userData,
+          assistantImage: imageUrl
+        });
+      }
+    }
+  };
+
   return (
-    <userDataContext.Provider
-      value={{
-        serverUrl,
-        userData,
-        setUserData,
-        loadingUser,
-        isAuthenticated,
-        checkAuth,
-        getGeminiResponse,
-        updatePreferences,
-        logout,
-        updateUserImage: (imageUrl) => {
-          if (userData) {
-            setUserData({ ...userData, assistantImage: imageUrl });
-          }
-        }
-      }}
-    >
+    <userDataContext.Provider value={value}>
       {children}
     </userDataContext.Provider>
   );
