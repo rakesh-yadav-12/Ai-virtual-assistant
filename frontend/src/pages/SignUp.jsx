@@ -56,7 +56,7 @@ function SignUp() {
 
     try {
       const response = await axios.post(
-        "http://localhost:5000/api/auth/signup",
+        "https://ai-virtual-backend.onrender.com/api/auth/signup",
         {
           name: formData.name,
           email: formData.email,
