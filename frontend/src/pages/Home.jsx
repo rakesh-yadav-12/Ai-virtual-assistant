@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { userDataContext } from "../context/UserContext.jsx";
 
 function Home() {
-  const { userData, getGeminiResponse, logout, getStats, getHistory, getShortcuts } = useContext(userDataContext);
+  const { userData, getGeminiResponse, logout } = useContext(userDataContext);
   const navigate = useNavigate();
 
   // State
@@ -14,11 +14,9 @@ function Home() {
   const [wakeWordDetected, setWakeWordDetected] = useState(false);
   const [assistantSpeaking, setAssistantSpeaking] = useState(false);
   const [assistantImageGlow, setAssistantImageGlow] = useState(false);
+  const [micPermissionDenied, setMicPermissionDenied] = useState(false);
   
   // New state for features
-  const [userStats, setUserStats] = useState(null);
-  const [commandHistory, setCommandHistory] = useState([]);
-  const [userShortcuts, setUserShortcuts] = useState([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("main");
 
@@ -26,6 +24,7 @@ function Home() {
   const recognitionRef = useRef(null);
   const silenceTimeoutRef = useRef(null);
   const menuRef = useRef(null);
+  const isMobile = useRef(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
 
   // Get assistant image
   const getAssistantImage = () => {
@@ -37,54 +36,17 @@ function Home() {
 
   const assistantImage = getAssistantImage();
 
-  // Load user data features
-  const loadUserFeatures = useCallback(async () => {
-    if (!userData) return;
-    
-    try {
-      // Load stats
-      const statsData = await getStats();
-      setUserStats(statsData);
-      
-      // Load history
-      const historyData = await getHistory();
-      setCommandHistory(historyData.slice(0, 10)); // Show only last 10
-      
-      // Load shortcuts
-      const shortcutsData = await getShortcuts();
-      setUserShortcuts(shortcutsData);
-    } catch (error) {
-      console.error("Error loading user features:", error);
-    }
-  }, [userData, getStats, getHistory, getShortcuts]);
-
-  // Close menu when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setMenuOpen(false);
-        setActiveTab("main");
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // Text-to-speech function
+  // Text-to-speech function optimized for mobile
   const speakText = useCallback((text) => {
     if (!text || !('speechSynthesis' in window)) return;
 
     window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
-    const voices = window.speechSynthesis.getVoices();
-    const englishVoice = voices.find(voice => voice.lang.startsWith('en')) || voices[0];
     
-    if (englishVoice) utterance.voice = englishVoice;
-    
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
+    // Mobile-friendly voice settings
+    utterance.rate = isMobile.current ? 0.9 : 1.0; // Slower on mobile for better clarity
+    utterance.pitch = isMobile.current ? 1.0 : 1.0;
     utterance.volume = 1.0;
 
     utterance.onstart = () => {
@@ -102,6 +64,7 @@ function Home() {
       setAssistantImageGlow(false);
     };
 
+    // On mobile, wait for user interaction if needed
     window.speechSynthesis.speak(utterance);
   }, []);
 
@@ -154,9 +117,6 @@ function Home() {
         setTimeout(() => {
           setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
         }, 10000);
-        
-        // Refresh user features after command
-        setTimeout(loadUserFeatures, 500);
       } else {
         // Add error message
         const errorMsg = "Sorry, I couldn't process that. Please try again.";
@@ -200,41 +160,49 @@ function Home() {
       setWakeWordDetected(false);
       setCommand("");
     }
-  }, [getGeminiResponse, speakText, loadUserFeatures]);
+  }, [getGeminiResponse, speakText]);
 
-  // Initialize speech recognition
+  // Initialize speech recognition with mobile optimizations
   const initSpeechRecognition = useCallback(() => {
     if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
       console.warn("Speech recognition not supported");
+      setMicPermissionDenied(true);
       return null;
     }
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
     
-    recognition.continuous = true;
+    // Mobile-specific settings
+    recognition.continuous = !isMobile.current; // Continuous only on desktop
     recognition.interimResults = true;
     recognition.lang = 'en-US';
     recognition.maxAlternatives = 1;
+    
+    // Adjust for mobile
+    if (isMobile.current) {
+      recognition.continuous = false;
+    }
 
     recognition.onstart = () => {
       setIsListening(true);
+      setMicPermissionDenied(false);
     };
 
     recognition.onend = () => {
       setIsListening(false);
       setWakeWordDetected(false);
       
-      // Auto-restart
-      setTimeout(() => {
-        if (recognitionRef.current) {
+      // Auto-restart only on desktop, not mobile
+      if (!isMobile.current && recognitionRef.current) {
+        setTimeout(() => {
           try {
             recognitionRef.current.start();
           } catch (err) {
-            console.log("Restarting recognition...");
+            console.log("Recognition restart error:", err);
           }
-        }
-      }, 300);
+        }, 500);
+      }
     };
 
     recognition.onresult = (event) => {
@@ -289,6 +257,11 @@ function Home() {
     recognition.onerror = (event) => {
       console.error("Recognition error:", event.error);
       setIsListening(false);
+      
+      // Handle permission errors
+      if (event.error === 'not-allowed' || event.error === 'permission-denied') {
+        setMicPermissionDenied(true);
+      }
     };
 
     return recognition;
@@ -302,14 +275,77 @@ function Home() {
     }
   };
 
-  // Logout handler
-  const handleLogout = async () => {
+  // Start/Stop listening manually (for mobile)
+  const toggleListening = async () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      await startListening();
+    }
+  };
+
+  // Start listening with permission check
+  const startListening = async () => {
+    // On mobile, we need to check permissions differently
+    if (isMobile.current) {
+      try {
+        // Request microphone permission
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop()); // Stop immediately
+        
+        // Initialize recognition
+        if (!recognitionRef.current) {
+          recognitionRef.current = initSpeechRecognition();
+        }
+        
+        // Start recognition with delay for mobile
+        setTimeout(() => {
+          try {
+            if (recognitionRef.current) {
+              recognitionRef.current.start();
+            }
+          } catch (err) {
+            console.log("Mobile start error:", err);
+          }
+        }, 300);
+        
+      } catch (error) {
+        console.error("Microphone permission denied:", error);
+        setMicPermissionDenied(true);
+        alert("Please allow microphone access in your browser settings to use voice commands.");
+      }
+    } else {
+      // Desktop
+      if (!recognitionRef.current) {
+        recognitionRef.current = initSpeechRecognition();
+      }
+      
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        recognitionRef.current.start();
+      } catch (error) {
+        console.error("Microphone error:", error);
+        setMicPermissionDenied(true);
+      }
+    }
+  };
+
+  // Stop listening
+  const stopListening = () => {
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
-      } catch (err) {}
+      } catch (err) {
+        console.log("Stop error:", err);
+      }
     }
-    
+    setIsListening(false);
+    setWakeWordDetected(false);
+  };
+
+  // Logout handler
+  const handleLogout = async () => {
+    stopListening();
     window.speechSynthesis.cancel();
     await logout();
     navigate("/signin");
@@ -317,43 +353,51 @@ function Home() {
     setActiveTab("main");
   };
 
-  // Handle shortcut click
-  const handleShortcutClick = (shortcut) => {
-    if (shortcut.action === "command") {
-      handleCommand(shortcut.keyword);
-    } else if (shortcut.url) {
-      window.open(shortcut.url, '_blank', 'noopener,noreferrer');
+  // Close menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setMenuOpen(false);
+        setActiveTab("main");
+      }
     }
-    setMenuOpen(false);
-    setActiveTab("main");
-  };
 
-  // Initialize speech recognition on mount
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, []);
+
+  // Initialize on mount
   useEffect(() => {
     if (userData) {
-      recognitionRef.current = initSpeechRecognition();
-      
-      const startRecognition = async () => {
-        try {
-          await navigator.mediaDevices.getUserMedia({ audio: true });
-          if (recognitionRef.current) {
-            setTimeout(() => {
-              try {
-                recognitionRef.current.start();
-              } catch (err) {
-                console.log("Starting recognition...");
-              }
-            }, 800);
+      // Don't auto-start on mobile - wait for user interaction
+      if (!isMobile.current) {
+        // Start recognition on desktop only
+        recognitionRef.current = initSpeechRecognition();
+        
+        const startDesktopRecognition = async () => {
+          try {
+            await navigator.mediaDevices.getUserMedia({ audio: true });
+            if (recognitionRef.current) {
+              setTimeout(() => {
+                try {
+                  recognitionRef.current.start();
+                } catch (err) {
+                  console.log("Starting recognition...");
+                }
+              }, 800);
+            }
+          } catch (error) {
+            console.log("Microphone access needed on desktop");
+            setMicPermissionDenied(true);
           }
-        } catch (error) {
-          console.log("Microphone access needed");
-        }
-      };
+        };
 
-      startRecognition();
-      
-      // Load user features
-      loadUserFeatures();
+        startDesktopRecognition();
+      }
     }
 
     // Cleanup
@@ -370,12 +414,15 @@ function Home() {
       
       window.speechSynthesis.cancel();
     };
-  }, [userData, initSpeechRecognition, loadUserFeatures]);
+  }, [userData, initSpeechRecognition]);
 
   // Load voices for speech synthesis
   useEffect(() => {
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.getVoices();
+      // Some browsers need this to populate voices
+      setTimeout(() => {
+        window.speechSynthesis.getVoices();
+      }, 1000);
     }
   }, []);
 
@@ -392,7 +439,7 @@ function Home() {
 
   return (
     <div className="h-screen w-screen gradient-bg overflow-hidden">
-      {/* User Avatar Hamburger Menu - Single Circle Button */}
+      {/* User Avatar Hamburger Menu */}
       <div className="absolute top-4 right-4 z-50" ref={menuRef}>
         <button
           onClick={() => setMenuOpen(!menuOpen)}
@@ -407,13 +454,6 @@ function Home() {
           
           {/* Active indicator dot */}
           <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-900 animate-pulse"></div>
-          
-          {/* Menu icon overlay */}
-          <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity duration-300">
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </div>
         </button>
 
         {/* Dropdown Menu */}
@@ -457,22 +497,10 @@ function Home() {
                 Menu
               </button>
               <button
-                onClick={() => setActiveTab("history")}
-                className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === "history" ? 'text-purple-400 border-b-2 border-purple-400' : 'text-white/70 hover:text-white'}`}
+                onClick={() => setActiveTab("settings")}
+                className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === "settings" ? 'text-purple-400 border-b-2 border-purple-400' : 'text-white/70 hover:text-white'}`}
               >
-                History
-              </button>
-              <button
-                onClick={() => setActiveTab("shortcuts")}
-                className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === "shortcuts" ? 'text-green-400 border-b-2 border-green-400' : 'text-white/70 hover:text-white'}`}
-              >
-                Shortcuts
-              </button>
-              <button
-                onClick={() => setActiveTab("stats")}
-                className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === "stats" ? 'text-yellow-400 border-b-2 border-yellow-400' : 'text-white/70 hover:text-white'}`}
-              >
-                Stats
+                Settings
               </button>
             </div>
 
@@ -518,97 +546,63 @@ function Home() {
                 </div>
               )}
 
-              {/* History Tab */}
-              {activeTab === "history" && (
+              {/* Settings Tab */}
+              {activeTab === "settings" && (
                 <div className="p-3">
-                  <div className="max-h-72 overflow-y-auto">
-                    {commandHistory.length === 0 ? (
-                      <p className="text-white/60 text-sm text-center py-4">No command history yet</p>
-                    ) : (
-                      commandHistory.map((item, index) => (
-                        <div key={index} className="mb-2 p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded">
-                              {item.type || "general"}
-                            </span>
-                            <span className="text-xs text-white/50">
-                              {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                          </div>
-                          <p className="text-white/80 text-sm font-medium">{item.command}</p>
-                          <p className="text-white/60 text-xs mt-1">{item.response?.substring(0, 60)}...</p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Shortcuts Tab */}
-              {activeTab === "shortcuts" && (
-                <div className="p-3">
-                  <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto">
-                    {userShortcuts.length === 0 ? (
-                      <p className="text-white/60 text-sm col-span-2 text-center py-4">No shortcuts yet</p>
-                    ) : (
-                      userShortcuts.map((shortcut, index) => (
+                  <div className="space-y-3">
+                    {/* Microphone Permission Status */}
+                    <div className="p-3 rounded-lg bg-white/5">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="font-medium">Microphone</p>
+                        <div className={`w-3 h-3 rounded-full ${micPermissionDenied ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                      </div>
+                      <p className="text-sm text-white/70">
+                        {micPermissionDenied 
+                          ? "Microphone access denied. Please allow in browser settings." 
+                          : "Microphone is ready for voice commands"}
+                      </p>
+                      {micPermissionDenied && (
                         <button
-                          key={index}
-                          onClick={() => handleShortcutClick(shortcut)}
-                          className="p-3 bg-gradient-to-br from-green-600/10 to-green-500/5 hover:from-green-600/20 hover:to-green-500/10 rounded-lg border border-green-500/20 transition-all duration-300 text-left group hover:scale-102"
+                          onClick={() => {
+                            // Guide user to settings
+                            if (isMobile.current) {
+                              alert("Go to browser settings > Site permissions > Microphone, and allow access for this site.");
+                            }
+                          }}
+                          className="mt-2 text-sm text-blue-400 hover:text-blue-300"
                         >
-                          <div className="text-green-400 text-lg mb-1 group-hover:scale-110 transition-transform">
-                            ⚡
-                          </div>
-                          <p className="text-white font-medium text-sm">{shortcut.keyword}</p>
-                          <p className="text-white/50 text-xs">{shortcut.action}</p>
+                          Fix microphone access
                         </button>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Stats Tab */}
-              {activeTab === "stats" && (
-                <div className="p-3">
-                  {userStats ? (
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="p-3 bg-blue-500/10 rounded-lg">
-                          <p className="text-white/60 text-xs">Total Commands</p>
-                          <p className="text-white text-xl font-bold">{userStats.totalCommands || 0}</p>
-                        </div>
-                        <div className="p-3 bg-green-500/10 rounded-lg">
-                          <p className="text-white/60 text-xs">Today's Commands</p>
-                          <p className="text-white text-xl font-bold">{userStats.commandsToday || 0}</p>
-                        </div>
-                      </div>
-                      
-                      {userStats.mostUsedTypes && Object.keys(userStats.mostUsedTypes).length > 0 && (
-                        <div className="p-3 bg-purple-500/10 rounded-lg">
-                          <p className="text-white/60 text-xs mb-2">Most Used Types</p>
-                          <div className="space-y-1">
-                            {Object.entries(userStats.mostUsedTypes).map(([type, count]) => (
-                              <div key={type} className="flex items-center justify-between">
-                                <span className="text-white text-sm">{type}</span>
-                                <span className="text-white/70 text-sm">{count}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
                       )}
-                      
-                      <div className="p-3 bg-yellow-500/10 rounded-lg">
-                        <p className="text-white/60 text-xs mb-1">Last Active</p>
-                        <p className="text-white text-sm">
-                          {userStats.lastActive ? new Date(userStats.lastActive).toLocaleString() : "Just now"}
-                        </p>
-                      </div>
                     </div>
-                  ) : (
-                    <p className="text-white/60 text-sm text-center py-4">Loading statistics...</p>
-                  )}
+                    
+                    {/* Voice Commands Toggle */}
+                    <div className="p-3 rounded-lg bg-white/5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">Voice Commands</p>
+                          <p className="text-sm text-white/70">Toggle listening</p>
+                        </div>
+                        <button
+                          onClick={toggleListening}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full ${
+                            isListening ? 'bg-green-500' : 'bg-gray-600'
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                              isListening ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                      {isMobile.current && (
+                        <p className="text-xs text-yellow-400 mt-2">
+                          On mobile, tap the microphone button below to start listening
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -617,7 +611,7 @@ function Home() {
       </div>
 
       {/* Main Content - Centered Assistant Image */}
-      <div className="h-full flex flex-col items-center justify-center p-4">
+      <div className="h-full flex flex-col items-center justify-center p-4 pt-20">
         {/* Large Assistant Image */}
         <div className="mb-6 relative">
           <div className={`relative w-64 h-64 md:w-80 md:h-80 lg:w-60 lg:h-80 rounded-3xl overflow-hidden  transition-all duration-500 ${
@@ -722,28 +716,20 @@ function Home() {
               </div>
             )}
             
-            {/* Voice Wave Animation (When assistant is speaking) */}
-            {assistantSpeaking && messages.length > 0 && messages[messages.length - 1].type === 'assistant' && (
-              <div className="mt-4 flex items-center justify-center gap-3 animate-fadeIn">
-                {[...Array(5)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="w-1.5 h-10 bg-gradient-to-t from-blue-400 to-blue-600 rounded-full animate-voiceWave"
-                    style={{
-                      animationDelay: `${i * 0.1}s`,
-                      animationDuration: '0.8s'
-                    }}
-                  ></div>
-                ))}
-              </div>
-            )}
-            
             {/* Status Message when no conversation */}
             {messages.length === 0 && !loading && !assistantSpeaking && (
               <div className="animate-fadeIn text-center">
                 <p className="text-white/60 text-lg">
-                  Say "<span className="text-blue-300 font-medium">I am</span>" or "
-                  <span className="text-blue-300 font-medium">{userData.assistantName || "Assistant"}</span>" to activate
+                  {isMobile.current ? (
+                    <>
+                      Tap the <span className="text-blue-300 font-medium">microphone button</span> below to start speaking
+                    </>
+                  ) : (
+                    <>
+                      Say "<span className="text-blue-300 font-medium">I am</span>" or "
+                      <span className="text-blue-300 font-medium">{userData.assistantName || "Assistant"}</span>" to activate
+                    </>
+                  )}
                 </p>
                 <p className="text-white/40 text-sm mt-2">
                   Or type your message below
@@ -752,29 +738,71 @@ function Home() {
             )}
           </div>
 
-          {/* Simple Input (optional for typing) */}
-          <form onSubmit={handleSubmit} className="mt-8">
+          {/* Input Area with Mobile Microphone Button */}
+          <form onSubmit={handleSubmit} className="mt-8 relative">
             <div className="relative">
               <input
                 type="text"
                 value={command}
                 onChange={(e) => setCommand(e.target.value)}
-                placeholder={`Say "I am" or "${userData.assistantName || 'Assistant'}" to activate...`}
-                className="w-full bg-white/10 border border-white/30 rounded-xl px-4 py-3 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent text-sm backdrop-blur-sm"
+                placeholder={
+                  isMobile.current 
+                    ? "Type your message here..." 
+                    : `Say "I am" or "${userData.assistantName || 'Assistant'}" to activate...`
+                }
+                className="w-full bg-white/10 border border-white/30 rounded-xl px-4 py-3 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent text-sm backdrop-blur-sm pr-24"
                 disabled={loading}
               />
+              
+              {/* Mobile Microphone Button */}
+              {isMobile.current && (
+                <button
+                  type="button"
+                  onClick={toggleListening}
+                  className={`absolute right-2 top-1/2 transform -translate-y-1/2 w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+                    isListening 
+                      ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
+                      : 'bg-blue-500 hover:bg-blue-600'
+                  }`}
+                  title={isListening ? "Stop listening" : "Start listening"}
+                >
+                  <span className="text-white text-lg">
+                    {isListening ? '⏹️' : '🎤'}
+                  </span>
+                </button>
+              )}
+              
+              {/* Send Button (for typing) */}
               <button
                 type="submit"
                 disabled={loading || !command.trim()}
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed w-10 h-10 rounded-full flex items-center justify-center transition"
+                className={`absolute ${isMobile.current ? 'right-16' : 'right-2'} top-1/2 transform -translate-y-1/2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed w-10 h-10 rounded-full flex items-center justify-center transition`}
                 title="Send message"
               >
                 <span>➤</span>
               </button>
             </div>
-            <p className="text-xs text-white/50 text-center mt-2">
-              {isListening ? "🎤 Assistant is listening..." : "💡 Ready for voice commands"}
-            </p>
+            
+            {/* Status Messages */}
+            <div className="mt-2 text-center">
+              {micPermissionDenied && (
+                <p className="text-red-400 text-xs animate-pulse">
+                  ❌ Microphone access denied. Please allow in browser settings.
+                </p>
+              )}
+              
+              {isMobile.current && !micPermissionDenied && (
+                <p className="text-white/70 text-xs">
+                  {isListening ? "🎤 Tap the button again to stop" : "🎤 Tap the microphone to speak"}
+                </p>
+              )}
+              
+              {!isMobile.current && (
+                <p className="text-xs text-white/50">
+                  {isListening ? "🎤 Assistant is listening..." : "💡 Ready for voice commands"}
+                </p>
+              )}
+            </div>
           </form>
         </div>
       </div>
@@ -803,15 +831,6 @@ function Home() {
           }
         }
         
-        @keyframes voiceWave {
-          0%, 100% {
-            transform: scaleY(0.2);
-          }
-          50% {
-            transform: scaleY(1);
-          }
-        }
-        
         @keyframes fadeIn {
           from {
             opacity: 0;
@@ -829,12 +848,15 @@ function Home() {
           animation: scaleIn 0.3s ease-out forwards;
         }
         
-        .animate-voiceWave {
-          animation: voiceWave 0.8s ease-in-out infinite;
-        }
-        
         .animate-fadeIn {
           animation: fadeIn 0.3s ease-out forwards;
+        }
+        
+        /* Mobile optimizations */
+        @media (max-width: 768px) {
+          .gradient-bg {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+          }
         }
       `}</style>
     </div>
