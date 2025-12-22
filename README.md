@@ -4,6 +4,19 @@
 ![Node.js](https://img.shields.io/badge/Node.js-20.x-green)
 ![React](https://img.shields.io/badge/React-18.x-61DAFB)
 ![Status](https://img.shields.io/badge/Status-Active%20Development-brightgreen)
+<img width="1910" height="971" alt="Screenshot 2025-12-22 135215" src="https://github.com/user-attachments/assets/9007ef43-04d6-40b1-9433-482d6c0d4f70" />
+<img width="1884" height="960" alt="Screenshot 2025-12-22 135257" src="https://github.com/user-attachments/assets/ad2f2e93-7fa0-4aa8-a10c-5199db07d682" />
+<img width="1874" height="955" alt="Screenshot 2025-12-22 135404" src="https://github.com/user-attachments/assets/d169e22f-96d0-4d7b-9b6a-f240465d1819" />
+<img width="1878" height="912" alt="Screenshot 2025-12-22 135425" src="https://github.com/user-attachments/assets/f7c0d18a-09a2-4e4a-a306-7a719cf61ffb" />
+<img width="1892" height="879" alt="Screenshot 2025-12-22 135456" src="https://github.com/user-attachments/assets/32ab88f3-800b-419c-ba66-9ffc1d9fd180" />
+<img width="1119" height="906" alt="Screenshot 2025-12-22 135534" src="https://github.com/user-attachments/assets/baf7ed70-0f12-4b7d-b714-78681544fe3c" />
+<img width="1858" height="772" alt="Screenshot 2025-12-22 135606" src="https://github.com/user-attachments/assets/323cf11a-60a5-404d-bd63-f159436c2f7e" />
+<img width="1892" height="1071" alt="Screenshot 2025-12-22 135823" src="https://github.com/user-attachments/assets/3a06a48c-4dad-40fc-89d8-ae23aa37d008" />
+<img width="1866" height="817" alt="Screenshot 2025-12-22 135859" src="https://github.com/user-attachments/assets/40c0d1ef-575b-4b27-8bf1-b44b7843e78e" />
+<img width="1900" height="969" alt="Screenshot 2025-12-22 140037" src="https://github.com/user-attachments/assets/f66f4d9d-4f43-411d-925c-8d7395b488ab" />
+<img width="1904" height="964" alt="Screenshot 2025-12-22 140103" src="https://github.com/user-attachments/assets/9f0e4cce-a28c-4045-b6e3-93eaa28950fa" />
+<img width="1905" height="1068" alt="Screenshot 2025-12-22 140136" src="https://github.com/user-attachments/assets/f84cf7c3-05a6-4667-9c16-ad753f6d477c" />
+
 
 A full-stack, voice-activated virtual assistant that processes natural language commands, automates web tasks, and features a customizable avatar interface. This project demonstrates integration of modern AI, real-time voice processing, and a complete user authentication system.
 
