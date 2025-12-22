@@ -35,12 +35,13 @@ export const signUp = async (req, res) => {
 
     const token = genToken(user._id);
     
-    res.cookie("token", token, { 
-      httpOnly: true,
-      secure: true,
-      sameSite: "None",
-      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
-    });
+   
+res.cookie('token', token, {
+    httpOnly: true,
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    secure: process.env.NODE_ENV === 'production' 
+});
 
     const { password: _, ...safeUser } = user.toObject();
     
@@ -83,12 +84,13 @@ export const Login = async (req, res) => {
 
     const token = genToken(user._id);
     
-    res.cookie("token", token, { 
-      httpOnly: true,
-      secure: true,
-      sameSite: "None",
-      maxAge: 30 * 24 * 60 * 60 * 1000
-    });
+  
+res.cookie('token', token, {
+    httpOnly: true,
+    maxAge: 7 * 24 * 60 * 60 * 1000, 
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    secure: process.env.NODE_ENV === 'production' 
+});
 
     const { password: _, ...safeUser } = user.toObject();
     
@@ -107,11 +109,13 @@ export const Login = async (req, res) => {
 
 export const logOut = async (req, res) => {
   try {
-    res.clearCookie("token", {
-      httpOnly: true,
-      secure: true,
-      sameSite: "None"
-    });
+    
+res.cookie('token', token, {
+    httpOnly: true,
+    maxAge: 7 * 24 * 60 * 60 * 1000, 
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    secure: process.env.NODE_ENV === 'production' 
+});
     
     return res.status(200).json({ 
       message: "Logged out successfully" 
