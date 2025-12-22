@@ -56,7 +56,7 @@ function SignUp() {
 
     try {
       const response = await axios.post(
-        "https://ai-virtual-assistant-11b.onrender.com/api/auth/signup",
+        "https://ai-virtual-assistant-12b.onrender.com/api/auth/signup",
         {
           name: formData.name,
           email: formData.email,
