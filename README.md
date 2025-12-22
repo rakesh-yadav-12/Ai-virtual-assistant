@@ -22,7 +22,7 @@ A full-stack, voice-activated virtual assistant that processes natural language 
 
 ## 🎥 Demo
 
-*   **Live Demo:** [Add your hosted application link here, e.g., https://yourapp.vercel.app]
+*   **Live Demo:** [Add your hosted application link here, e.g.,https://ai-virtual-assistant-9f.onrender.com]
 *   **Video Walkthrough:** [Link to a short screen recording/Loom video demonstrating key features]
 
 ## ✨ Features
