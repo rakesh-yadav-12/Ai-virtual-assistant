@@ -10,7 +10,7 @@ A full-stack, voice-activated virtual assistant that processes natural language 
 ## 🎥 Demo
 
 *   **Live Demo:** [Add your hosted application link here, e.g.,https://ai-virtual-assistant-13f.onrender.com]
-*   **Video Walkthrough:** [Link to a short screen recording/Loom video demonstrating key features]
+*   **Video Walkthrough:** [https://www.flexclip.com/share/149404459c2YzAcAmuugII1bUjzY7i8XMJP05hwZ.html]
 
 ## ✨ Features
 
@@ -47,13 +47,21 @@ Here is the visual journey through the application:
 
 3.  **Core Assistant Interface**
     `[Image 4: Main Dashboard / Chat Interface]`
-    *Caption: The main dashboard showing the personalized assistant avatar, voice control buttons, and conversation history.*
+    *Caption: The main dashboard showing the personalized assistant avatar,.*
+    <img width="1905" height="1068" alt="Screenshot 2025-12-22 140136" src="https://github.com/user-attachments/assets/f17f36f6-5300-45b8-b32a-c2f0cbcd2063" />
+
 
     `[Image 5: Voice Command in Action]`
     *Caption: A demonstration of a live voice command being processed and the assistant's textual and spoken response.*
+    <img width="1754" height="868" alt="image" src="https://github.com/user-attachments/assets/765ab170-da90-4ab5-8d5f-49948a0ccff8" />
+
 
     `[Image 6: Task Execution Demo]`
     *Caption: Example of the assistant automatically opening a new browser tab to perform a Google search or launch an application.*
+    <img width="1873" height="992" alt="image" src="https://github.com/user-attachments/assets/939c9af4-40b6-4fee-8722-351a57570da6" />
+
+    <img width="1903" height="1034" alt="image" src="https://github.com/user-attachments/assets/d017880b-c40d-426f-a86d-25fc7bb2bfbc" />
+
 
 ## 🏗️ Architecture & Tech Stack
 
@@ -124,7 +132,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 👨‍💻 Author
 **Rakesh Yadav**
 - GitHub: [@rakesh-yadav-12](https://github.com/rakesh-yadav-12)
-- Project Link: [https://github.com/rakesh-yadav-12/virtual-assistant](https://github.com/rakesh-yadav-12/virtual-assistant)
+- Project Link: [https://github.com/rakesh-yadav-12/Ai-virtual-assistant/edit/main/README.md)
 
 ---
 **⭐ If you found this project interesting or useful, please consider giving it a star on GitHub!**
