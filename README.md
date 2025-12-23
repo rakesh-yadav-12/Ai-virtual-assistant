@@ -39,7 +39,9 @@ A full-stack, voice-activated virtual assistant that processes natural language 
 Here is the visual journey through the application:
 
 1.  **Authentication & Onboarding**
-    `[Image 1: <img width="1913" height="1074" alt="Screenshot 2025-12-22 190011" src="https://github.com/user-attachments/assets/5c05c8ab-e256-4cba-823c-dfe43a888ebd" />
+    [Image 1: SignUp and Loging]`
+    *Caption: Secure user login and registration pages with form validation.*
+     <img width="1913" height="1074" alt="Screenshot 2025-12-22 190011" src="https://github.com/user-attachments/assets/5c05c8ab-e256-4cba-823c-dfe43a888ebd" />
     <img width="1909" height="1062" alt="Screenshot 2025-12-22 165335" src="https://github.com/user-attachments/assets/c7bc6366-1519-4a2a-973e-04ad7ea4d143" />]`
     *Caption: Secure user login and registration pages with form validation.*
 
@@ -49,7 +51,7 @@ Here is the visual journey through the application:
     `[Image 3: Assistant Naming Screen]`
     *Caption: Final onboarding step to personalize the assistant's name.*
 
-2.  **Core Assistant Interface**
+3.  **Core Assistant Interface**
     `[Image 4: Main Dashboard / Chat Interface]`
     *Caption: The main dashboard showing the personalized assistant avatar, voice control buttons, and conversation history.*
 
