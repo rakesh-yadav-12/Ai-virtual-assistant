@@ -22,7 +22,7 @@ A full-stack, voice-activated virtual assistant that processes natural language 
 
 ## 🎥 Demo
 
-*   **Live Demo:** [Add your hosted application link here, e.g.,https://ai-virtual-assistant-9f.onrender.com]
+*   **Live Demo:** [Add your hosted application link here, e.g.,https://ai-virtual-assistant-13f.onrender.com]
 *   **Video Walkthrough:** [Link to a short screen recording/Loom video demonstrating key features]
 
 ## ✨ Features
@@ -39,7 +39,8 @@ A full-stack, voice-activated virtual assistant that processes natural language 
 Here is the visual journey through the application:
 
 1.  **Authentication & Onboarding**
-    `[Image 1: Login/Signup Interface]`
+    `[Image 1: <img width="1913" height="1074" alt="Screenshot 2025-12-22 190011" src="https://github.com/user-attachments/assets/5c05c8ab-e256-4cba-823c-dfe43a888ebd" />
+    <img width="1909" height="1062" alt="Screenshot 2025-12-22 165335" src="https://github.com/user-attachments/assets/c7bc6366-1519-4a2a-973e-04ad7ea4d143" />]`
     *Caption: Secure user login and registration pages with form validation.*
 
     `[Image 2: Avatar Selection Screen]`
