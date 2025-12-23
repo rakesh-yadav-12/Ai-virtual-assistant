@@ -43,13 +43,20 @@ Here is the visual journey through the application:
     *Caption: Secure user login and registration pages with form validation.*
      <img width="1913" height="1074" alt="Screenshot 2025-12-22 190011" src="https://github.com/user-attachments/assets/5c05c8ab-e256-4cba-823c-dfe43a888ebd" />
     <img width="1909" height="1062" alt="Screenshot 2025-12-22 165335" src="https://github.com/user-attachments/assets/c7bc6366-1519-4a2a-973e-04ad7ea4d143" />
-    *Caption: Secure user login and registration pages with form validation.*
+  
 
     `[Image 2: Avatar Selection Screen]`
     *Caption: Interactive grid for users to select or upload a custom assistant avatar.*
+<img width="1892" height="1071" alt="Screenshot 2025-12-22 135823" src="https://github.com/user-attachments/assets/8f8b651f-55bd-481b-94a0-a8393b2c010a" />
+<img width="1866" height="817" alt="Screenshot 2025-12-22 135859" src="https://github.com/user-attachments/assets/71075a82-a39c-495c-a56e-febf22444274" />
+<img width="1900" height="969" alt="Screenshot 2025-12-22 140037" src="https://github.com/user-attachments/assets/e53bace2-e958-4f65-a3cf-f01a106d1546" />
 
     `[Image 3: Assistant Naming Screen]`
     *Caption: Final onboarding step to personalize the assistant's name.*
+    <img width="1892" height="879" alt="Screenshot 2025-12-22 135456" src="https://github.com/user-attachments/assets/5369f6a0-4a2c-494f-a7d8-82c53666cb49" />
+<img width="1119" height="906" alt="Screenshot 2025-12-22 135534" src="https://github.com/user-attachments/assets/94880210-be74-4f83-809f-b78a13c13871" />
+<img width="1858" height="772" alt="Screenshot 2025-12-22 135606" src="https://github.com/user-attachments/assets/7c8beb1c-6265-41ea-8cb9-f95b1f2b3ce2" />
+
 
 3.  **Core Assistant Interface**
     `[Image 4: Main Dashboard / Chat Interface]`
