@@ -1,42 +1,30 @@
-import express from "express";
-import {
-  askToAssistant,
+// routes/user.routes.js
+import express from 'express';
+import { protect } from '../middleware/auth.middleware.js';
+import { 
   getCurrentUser,
-  updateAssistant,
-  getHistory,
-  clearHistory,
-  getStats,
-  addShortcut,
-  getShortcuts
-} from "../controllers/user.controllers.js";
-import isAuth from "../middlewares/isAuth.js";
-import upload from "../middlewares/multer.js";
+  updateUserPreferences,
+  askAssistant 
+} from '../controllers/user.controller.js';
 
-const userRouter = express.Router();
+const router = express.Router();
 
-// User info
-userRouter.get("/current", isAuth, getCurrentUser);
+// Get current user (protected)
+router.get('/current', protect, getCurrentUser);
 
-// Assistant customization
-userRouter.post(
-  "/update",
-  isAuth,
-  upload.single("assistantImage"),
-  updateAssistant
-);
+// Update user preferences (protected)
+router.post('/update', protect, updateUserPreferences);
 
-// Main assistant functionality
-userRouter.post("/ask", isAuth, askToAssistant);
+// Ask assistant (protected)
+router.post('/ask', protect, askAssistant);
 
-// History management
-userRouter.get("/history", isAuth, getHistory);
-userRouter.delete("/history", isAuth, clearHistory);
+// Debug endpoint
+router.get('/debug', (req, res) => {
+  res.json({
+    cookies: req.cookies,
+    authenticated: !!req.cookies?.token,
+    timestamp: new Date().toISOString()
+  });
+});
 
-// Stats and analytics
-userRouter.get("/stats", isAuth, getStats);
-
-// Shortcuts management
-userRouter.post("/shortcuts", isAuth, addShortcut);
-userRouter.get("/shortcuts", isAuth, getShortcuts);
-
-export default userRouter;
+export default router;
