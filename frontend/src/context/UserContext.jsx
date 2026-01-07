@@ -1,4 +1,68 @@
-import React, { createContext, useState, useEffect, useCallback } from "react";
+import jwt from "jsonwebtoken";
+
+const isAuth = (req, res, next) => {
+  try {
+    const token = req.cookies?.token || req.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      return res.status(401).json({ 
+        message: "Authentication required. Please log in." 
+      });
+    }
+
+    const verified = jwt.verify(token, process.env.JWT_SECRET);
+    req.userId = verified.userId;
+    next();
+  } catch (error) {
+    console.error("Auth middleware error:", error.message);
+    return res.status(401).json({ 
+      message: "Invalid or expired token. Please log in again." 
+    });
+  }
+};
+
+export default isAuth;import express from "express";
+import {
+  askToAssistant,
+  getCurrentUser,
+  updateAssistant,
+  getHistory,
+  clearHistory,
+  getStats,
+  addShortcut,
+  getShortcuts
+} from "../controllers/user.controllers.js";
+import isAuth from "../middlewares/isAuth.js";
+import upload from "../middlewares/multer.js";
+
+const userRouter = express.Router();
+
+// User info
+userRouter.get("/current", isAuth, getCurrentUser);
+
+// Assistant customization
+userRouter.post(
+  "/update",
+  isAuth,
+  upload.single("assistantImage"),
+  updateAssistant
+);
+
+// Main assistant functionality
+userRouter.post("/ask", isAuth, askToAssistant);
+
+// History management
+userRouter.get("/history", isAuth, getHistory);
+userRouter.delete("/history", isAuth, clearHistory);
+
+// Stats and analytics
+userRouter.get("/stats", isAuth, getStats);
+
+// Shortcuts management
+userRouter.post("/shortcuts", isAuth, addShortcut);
+userRouter.get("/shortcuts", isAuth, getShortcuts);
+
+export default userRouter;import React, { createContext, useState, useEffect, useCallback } from "react";
 import axios from "axios";
 
 export const userDataContext = createContext();
