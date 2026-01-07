@@ -7,7 +7,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: "https://ai-virtual-assistant-13b.onrender.com",
+        target: "https://ai-virtual-assistant-15b.onrender.com",
         changeOrigin: true,
         secure: false,
       }
