@@ -4,7 +4,7 @@ import { userDataContext } from "../context/UserContext.jsx";
 import axios from "axios";
 
 function SignIn() {
-  const { setUserData, checkAuth } = useContext(userDataContext);
+  const { login, checkAuth } = useContext(userDataContext);
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -13,6 +13,41 @@ function SignIn() {
   });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.email.trim() || !formData.password) {
+      alert("Please fill in all fields");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const result = await login(formData.email, formData.password);
+      
+      if (result.success) {
+        await checkAuth();
+        alert("Login successful!");
+        navigate("/");
+      } else {
+        alert(result.message || "Login failed");
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      alert("Login failed. Please check your credentials.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleChange = (e) => {
     setFormData({
