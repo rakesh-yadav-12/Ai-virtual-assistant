@@ -1,137 +1,152 @@
-import genToken from "../config/token.js";
-import User from "../models/user.model.js";
-import bcrypt from "bcryptjs";
+// controllers/auth.controller.js
+import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
 
-/* =========================
-   SIGN UP
-========================= */
-export const signUp = async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
-
-    if (!name || !email || !password) {
-      return res.status(400).json({
-        message: "Name, email, and password are required"
-      });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({
-        message: "Password must be at least 6 characters long"
-      });
-    }
-
-    const existEmail = await User.findOne({ email });
-    if (existEmail) {
-      return res.status(400).json({
-        message: "Email already exists!"
-      });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const user = await User.create({
-      name,
-      email,
-      password: hashedPassword,
-      assistantName: `${name}'s Assistant`
-    });
-
-    const token = genToken(user._id);
-
-    // ✅ Set cookie correctly for Render / production
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    });
-
-    const { password: _, ...safeUser } = user.toObject();
-
-    return res.status(201).json({
-      message: "Account created successfully!",
-      user: safeUser
-    });
-  } catch (error) {
-    console.error("Sign up error:", error.message);
-    return res.status(500).json({
-      message: "Server error during sign up"
-    });
-  }
-};
-
-/* =========================
-   LOGIN
-========================= */
+// Login function
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({
-        message: "Email and password are required"
-      });
-    }
-
+    // Find user
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({
-        message: "Invalid email or password"
-      });
+      return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
+    // Check password
+    const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      return res.status(400).json({
-        message: "Invalid email or password"
-      });
+      return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    const token = genToken(user._id);
+    // Create token
+    const token = jwt.sign(
+      { userId: user._id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
-    // ✅ Set cookie correctly
-    res.cookie("token", token, {
+    // Set cookie with proper settings for cross-domain
+    res.cookie('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000
+      secure: true, // Must be true for HTTPS
+      sameSite: 'none', // Required for cross-domain
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      domain: '.onrender.com', // Allow all subdomains on Render
+      path: '/'
     });
 
-    const { password: _, ...safeUser } = user.toObject();
+    // Remove password from response
+    const userWithoutPassword = { ...user._doc };
+    delete userWithoutPassword.password;
 
-    return res.status(200).json({
-      message: "Login successful!",
-      user: safeUser
+    res.status(200).json({
+      message: "Login successful",
+      user: userWithoutPassword,
+      token: token // Also send token in response for localStorage option
     });
   } catch (error) {
-    console.error("Login error:", error.message);
-    return res.status(500).json({
-      message: "Server error during login"
-    });
+    console.error("Login error:", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
-/* =========================
-   LOGOUT
-========================= */
-export const logOut = async (req, res) => {
+// Signup function
+export const signup = async (req, res) => {
   try {
-    // ✅ CLEAR cookie properly
-    res.cookie("token", "", {
+    const { name, email, password } = req.body;
+
+    // Check if user exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "User already exists" });
+    }
+
+    // Create user
+    const user = new User({ name, email, password });
+    await user.save();
+
+    // Create token
+    const token = jwt.sign(
+      { userId: user._id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    // Set cookie
+    res.cookie('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      expires: new Date(0)
+      secure: true,
+      sameSite: 'none',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      domain: '.onrender.com',
+      path: '/'
     });
 
-    return res.status(200).json({
-      message: "Logged out successfully"
+    // Remove password from response
+    const userWithoutPassword = { ...user._doc };
+    delete userWithoutPassword.password;
+
+    res.status(201).json({
+      message: "User created successfully",
+      user: userWithoutPassword,
+      token: token
     });
   } catch (error) {
-    console.error("Logout error:", error.message);
-    return res.status(500).json({
-      message: "Server error during logout"
+    console.error("Signup error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Logout function
+export const logout = async (req, res) => {
+  try {
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      domain: '.onrender.com',
+      path: '/'
+    });
+    
+    res.status(200).json({ message: "Logged out successfully" });
+  } catch (error) {
+    console.error("Logout error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Check auth status
+export const checkAuth = async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    
+    if (!token) {
+      return res.status(401).json({ 
+        message: "Not authenticated",
+        authenticated: false 
+      });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.userId).select('-password');
+    
+    if (!user) {
+      return res.status(401).json({ 
+        message: "User not found",
+        authenticated: false 
+      });
+    }
+
+    res.status(200).json({
+      authenticated: true,
+      user: user
+    });
+  } catch (error) {
+    console.error("Auth check error:", error);
+    res.status(401).json({ 
+      message: "Not authenticated",
+      authenticated: false 
     });
   }
 };
