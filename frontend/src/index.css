@@ -29,66 +29,25 @@
     @apply px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold rounded-full 
            shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 
            hover:scale-[1.02] active:scale-[0.98] 
-           transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed;
+           transition-all duration-300;
   }
   
   .btn-secondary {
     @apply px-6 py-3 bg-white/10 text-white font-semibold rounded-full 
            border border-white/20 hover:bg-white/20 
            hover:scale-[1.02] active:scale-[0.98] 
-           transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed;
+           transition-all duration-300;
   }
   
   .input-field {
     @apply w-full px-4 py-3 bg-white/5 border-2 border-white/10 rounded-xl 
            text-white placeholder-white/50 outline-none 
            focus:border-blue-500 focus:bg-white/10 
-           transition-all duration-300 disabled:opacity-50;
+           transition-all duration-300;
   }
   
   .card {
     @apply glass rounded-2xl p-6 hover:shadow-2xl hover:shadow-blue-500/10 
            transition-all duration-500;
   }
-  
-  .loading-dots {
-    @apply flex items-center justify-center gap-1;
-  }
-  
-  .loading-dots span {
-    @apply w-2 h-2 bg-blue-400 rounded-full;
-    animation: loading-dot 1.4s ease-in-out infinite;
-  }
-  
-  .loading-dots span:nth-child(2) {
-    animation-delay: 0.2s;
-  }
-  
-  .loading-dots span:nth-child(3) {
-    animation-delay: 0.4s;
-  }
-}
-
-@keyframes loading-dot {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(0.5); opacity: 0.5; }
-}
-
-/* Custom animations */
-.animate-pulse-slow {
-  animation: pulse 2s ease-in-out infinite;
-}
-
-.animate-spin-slow {
-  animation: spin 3s linear infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
+} 
