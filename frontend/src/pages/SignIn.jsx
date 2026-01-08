@@ -19,7 +19,7 @@ function SignIn() {
       ...formData,
       [e.target.name]: e.target.value
     });
-    setError("");
+    setError(""); // Clear error when user types
   };
 
   const handleSubmit = async (e) => {
@@ -37,25 +37,19 @@ function SignIn() {
       const result = await login(formData.email, formData.password);
       
       if (result.success) {
-        console.log("✅ Login successful, navigating to /");
-        // Small delay to ensure state is updated
-        setTimeout(() => {
-          navigate("/");
-        }, 100);
+        navigate("/");
       } else {
         setError(result.error || "Login failed. Please check your credentials.");
       }
     } catch (err) {
-      console.error("Login error:", err);
       setError("An unexpected error occurred. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  // If already authenticated, redirect immediately
+  // If already authenticated, redirect
   if (isAuthenticated) {
-    console.log("Already authenticated, redirecting to /");
     navigate("/");
     return null;
   }
