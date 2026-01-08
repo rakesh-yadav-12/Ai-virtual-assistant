@@ -1,4 +1,4 @@
-// src/context/UserContext.jsx - FINAL WORKING VERSION
+// src/context/UserContext.jsx
 import React, { createContext, useState, useEffect, useCallback } from "react";
 
 export const userDataContext = createContext();
@@ -13,69 +13,45 @@ function UserContextProvider({ children }) {
   const [loadingUser, setLoadingUser] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Custom fetch that handles errors silently
-  const silentFetch = useCallback(async (endpoint, options = {}) => {
-    const url = `${serverUrl}${endpoint}`;
-    
+  // Silent auth check - no error logging
+  const checkAuth = useCallback(async () => {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
       
-      const response = await fetch(url, {
-        ...options,
+      const response = await fetch(`${serverUrl}/api/user/current`, {
+        method: 'GET',
         credentials: 'include',
         signal: controller.signal,
         headers: {
           'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          ...options.headers
         }
       });
       
       clearTimeout(timeoutId);
       
       if (response.ok) {
-        return await response.json();
-      }
-      
-      // For 401, return null without throwing error
-      if (response.status === 401) {
-        return null;
-      }
-      
-      return null;
-    } catch (error) {
-      // Network or timeout error - return null
-      return null;
-    }
-  }, []);
-
-  // Check authentication - SILENT
-  const checkAuth = useCallback(async () => {
-    try {
-      const data = await silentFetch('/api/user/current');
-      
-      if (data && data._id) {
+        const data = await response.json();
         setUserData(data);
         setIsAuthenticated(true);
         localStorage.setItem('userData', JSON.stringify(data));
         return { success: true, user: data };
       }
       
-      // Not authenticated - clear data
+      // 401 is expected - user is not logged in
       setUserData(null);
       setIsAuthenticated(false);
       localStorage.removeItem('userData');
-      return { success: false };
+      return { success: false, error: "Not authenticated" };
       
     } catch (error) {
-      // Should not reach here
+      // Network error or timeout
       setUserData(null);
       setIsAuthenticated(false);
       localStorage.removeItem('userData');
-      return { success: false };
+      return { success: false, error: "Network error" };
     }
-  }, [silentFetch]);
+  }, []);
 
   // Login function
   const login = useCallback(async (email, password) => {
@@ -93,10 +69,7 @@ function UserContextProvider({ children }) {
         setUserData(data.user);
         setIsAuthenticated(true);
         localStorage.setItem('userData', JSON.stringify(data.user));
-        
-        // Verify login worked
-        await checkAuth();
-        
+        console.log('✅ Login successful');
         return { success: true, data };
       }
       
@@ -111,7 +84,7 @@ function UserContextProvider({ children }) {
         error: "Network error. Please try again." 
       };
     }
-  }, [checkAuth]);
+  }, []);
 
   // Signup function
   const signup = useCallback(async (name, email, password) => {
@@ -129,7 +102,7 @@ function UserContextProvider({ children }) {
         setUserData(data.user);
         setIsAuthenticated(true);
         localStorage.setItem('userData', JSON.stringify(data.user));
-        
+        console.log('✅ Account created');
         return { success: true, data };
       }
       
@@ -162,12 +135,15 @@ function UserContextProvider({ children }) {
       localStorage.removeItem('selectedAssistantImage');
       localStorage.removeItem('customAssistantImages');
       localStorage.removeItem('selectedImageIndex');
+      console.log('✅ Logged out');
     }
   }, []);
 
   // Initialize
   useEffect(() => {
     const initAuth = async () => {
+      console.log('🔍 Checking authentication...');
+      
       // Check localStorage first
       const savedUser = localStorage.getItem('userData');
       
@@ -176,7 +152,10 @@ function UserContextProvider({ children }) {
           const user = JSON.parse(savedUser);
           const result = await checkAuth();
           if (!result.success) {
+            console.log('🔒 Session expired');
             localStorage.removeItem('userData');
+          } else {
+            console.log('✅ Session restored');
           }
         } catch {
           localStorage.removeItem('userData');
