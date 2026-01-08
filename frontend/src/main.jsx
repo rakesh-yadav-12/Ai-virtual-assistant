@@ -5,18 +5,15 @@ import App from './App.jsx'
 import UserContextProvider from './context/UserContext.jsx'
 import './index.css'
 
-// Enable detailed logging in development
+// Enable debugging in development
 if (import.meta.env.DEV) {
   console.log('🚀 Development mode enabled');
-  console.log('🔧 Environment:', import.meta.env.MODE);
-  console.log('🌐 API URL:', import.meta.env.VITE_API_URL);
   
-  // Log all fetch requests
-  const originalFetch = window.fetch;
-  window.fetch = function(...args) {
-    console.log('📤 Fetch request:', args[0]);
-    return originalFetch.apply(this, args);
-  };
+  // Log cookies for debugging
+  console.log('🍪 Current cookies:', document.cookie);
+  
+  // Fix for cookie issues in development
+  document.cookie = "test_cookie=test_value; SameSite=Lax; path=/";
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(
