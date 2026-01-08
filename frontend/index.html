@@ -6,111 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Virtual Assistant</title>
     
-    <!-- IMPROVED ERROR HANDLER -->
-    <script>
-      (function() {
-        console.log('🔧 Initializing improved error handler...');
-        
-        // Store original console methods
-        const originalError = console.error;
-        const originalWarn = console.warn;
-        
-        // Improved error filtering
-        console.error = function(...args) {
-          const message = args[0] ? String(args[0]) : '';
-          
-          // Filter out common noise errors
-          const silentErrors = [
-            '401', 'Unauthorized', 'Failed to fetch',
-            'Network Error', 'ERR_NETWORK',
-            'session', 'auth', 'login',
-            '/api/user/current', '/api/auth/',
-            'TypeError', 't is not a function',
-            'speech', 'microphone', 'Recognition'
-          ];
-          
-          const shouldSilence = silentErrors.some(keyword => 
-            message.includes(keyword)
-          );
-          
-          if (shouldSilence) {
-            // Log silently for debugging
-            if (message.includes('401') && message.includes('/api/')) {
-              console.log('[Auth] Silent 401 - Normal for unauthenticated users');
-            }
-            return;
-          }
-          
-          originalError.apply(console, args);
-        };
-        
-        console.warn = function(...args) {
-          const message = args[0] ? String(args[0]) : '';
-          
-          // Filter out common warnings
-          if (message.includes('React') || 
-              message.includes('deprecated') ||
-              message.includes('experimental')) {
-            return;
-          }
-          
-          originalWarn.apply(console, args);
-        };
-        
-        // Handle fetch errors gracefully
-        const originalFetch = window.fetch;
-        window.fetch = async function(...args) {
-          try {
-            const response = await originalFetch.apply(this, args);
-            
-            // Don't log 401 errors for auth endpoints
-            if (response.status === 401) {
-              const url = args[0] || '';
-              if (typeof url === 'string' && url.includes('/api/')) {
-                return response; // Let the app handle it
-              }
-            }
-            
-            return response;
-          } catch (error) {
-            // Network errors - don't spam console
-            if (error.name === 'TypeError' && error.message.includes('fetch')) {
-              console.log('[Network] Connection issue');
-              throw error; // Re-throw for app to handle
-            }
-            throw error;
-          }
-        };
-        
-        console.log('✅ Error handler active - Common errors filtered');
-        
-        // Add global error listener for uncaught errors
-        window.addEventListener('error', function(event) {
-          // Don't stop propagation, just log quietly
-          if (event.error && event.error.message) {
-            const msg = event.error.message;
-            if (msg.includes('401') || msg.includes('auth') || msg.includes('session')) {
-              event.preventDefault();
-              return false;
-            }
-          }
-        });
-        
-        // Handle unhandled promise rejections
-        window.addEventListener('unhandledrejection', function(event) {
-          const reason = event.reason;
-          if (reason && 
-              (reason.status === 401 || 
-               reason.message?.includes('auth') || 
-               reason.message?.includes('401'))) {
-            event.preventDefault();
-            console.log('[Promise] Silent auth rejection');
-          }
-        });
-      })();
-    </script>
-    
-    <!-- BASIC STYLES -->
     <style>
       * { 
         margin: 0; 
@@ -127,17 +22,16 @@
         background: #0a0a0a;
         color: white;
         overflow-x: hidden;
-        min-height: 100vh;
       }
       
       /* Loading animation */
-      @keyframes pulse {
-        0%, 100% { opacity: 0.5; }
-        50% { opacity: 1; }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
       }
       
-      .loading-pulse {
-        animation: pulse 2s ease-in-out infinite;
+      .spinner {
+        animation: spin 1s linear infinite;
       }
       
       /* Scrollbar styling */
