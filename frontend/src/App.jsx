@@ -9,10 +9,10 @@ import Customize2 from "./pages/Customize2.jsx";
 import { userDataContext } from "./context/UserContext.jsx";
 
 function App() {
-  const { loadingUser, isAuthenticated, userData } = useContext(userDataContext);
+  const { loadingUser, isAuthenticated, userData, authChecked } = useContext(userDataContext);
 
   // Show loading only on initial load
-  if (loadingUser) {
+  if (loadingUser && !authChecked) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black flex items-center justify-center">
         <div className="text-center">
