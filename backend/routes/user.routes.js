@@ -1,29 +1,71 @@
-import express from 'express';
-import { protect } from '../middleware/auth.middleware.js';
-import { 
-  getCurrentUser,
-  updateUserPreferences,
-  askAssistant 
-} from '../controllers/user.controller.js';
+import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
 
-const router = express.Router();
+export const protect = async (req, res, next) => {
+  try {
+    console.log('Auth middleware - Checking cookies:', req.cookies);
+    console.log('Auth middleware - Headers:', req.headers.authorization);
+    
+    // Get token from cookies first
+    let token = req.cookies?.token;
+    
+    // If no cookie, check Authorization header
+    if (!token && req.headers.authorization?.startsWith('Bearer ')) {
+      token = req.headers.authorization.split(' ')[1];
+      console.log('Using Bearer token from header');
+    }
 
-// Get current user (protected)
-router.get('/current', protect, getCurrentUser);
+    if (!token) {
+      console.log('❌ No token found');
+      return res.status(401).json({
+        success: false,
+        message: "Not authenticated. Please login.",
+        authenticated: false
+      });
+    }
 
-// Update user preferences (protected)
-router.post('/update', protect, updateUserPreferences);
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Get user from database
+    const user = await User.findById(decoded.userId).select('-password');
+    
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "User not found",
+        authenticated: false
+      });
+    }
 
-// Ask assistant (protected)
-router.post('/ask', protect, askAssistant);
-
-// Debug endpoint
-router.get('/debug', (req, res) => {
-  res.json({
-    cookies: req.cookies,
-    authenticated: !!req.cookies?.token,
-    timestamp: new Date().toISOString()
-  });
-});
-
-export default router;
+    // Attach user to request
+    req.user = user;
+    console.log('✅ User authenticated:', user.email);
+    
+    next();
+  } catch (error) {
+    console.error('Auth middleware error:', error);
+    
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token",
+        authenticated: false
+      });
+    }
+    
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        message: "Token expired",
+        authenticated: false
+      });
+    }
+    
+    return res.status(401).json({
+      success: false,
+      message: "Not authenticated",
+      authenticated: false
+    });
+  }
+};// routes/user.routes.js
