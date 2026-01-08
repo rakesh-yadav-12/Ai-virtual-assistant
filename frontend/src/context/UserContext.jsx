@@ -7,34 +7,9 @@ export const userDataContext = createContext();
 // IMPORTANT: Make sure this URL matches your actual backend
 const serverUrl = "https://ai-virtual-assistant-20b.onrender.com"; // Change this to match your backend
 
-// Configure axios globally
+// Configure axios
 axios.defaults.withCredentials = true;
 axios.defaults.baseURL = serverUrl;
-
-// Add request interceptor to add cookies
-axios.interceptors.request.use(
-  config => {
-    // Ensure cookies are sent with every request
-    config.withCredentials = true;
-    return config;
-  },
-  error => {
-    return Promise.reject(error);
-  }
-);
-
-// Add response interceptor to handle auth errors
-axios.interceptors.response.use(
-  response => response,
-  error => {
-    if (error.response?.status === 401) {
-      // Clear user data on 401
-      localStorage.removeItem('userData');
-      console.log('Session expired or not authenticated');
-    }
-    return Promise.reject(error);
-  }
-);
 
 function UserContextProvider({ children }) {
   const [userData, setUserData] = useState(() => {
@@ -44,12 +19,14 @@ function UserContextProvider({ children }) {
   });
   const [loadingUser, setLoadingUser] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
 
-  // Check authentication status
-  const checkAuth = useCallback(async () => {
+  // Check authentication status - SILENTLY without throwing errors
+  const checkAuth = useCallback(async (silent = true) => {
     try {
-      setLoadingUser(true);
-      console.log('Checking authentication...');
+      if (!silent) setLoadingUser(true);
+      
+      console.log('🔍 Checking authentication...');
       
       const response = await axios.get("/api/user/current", {
         withCredentials: true,
@@ -61,29 +38,40 @@ function UserContextProvider({ children }) {
         setUserData(response.data);
         setIsAuthenticated(true);
         localStorage.setItem('userData', JSON.stringify(response.data));
-        return response.data;
+        return { success: true, user: response.data };
       }
     } catch (error) {
-      console.log("❌ Not authenticated:", {
-        status: error.response?.status,
-        message: error.message,
-        url: error.config?.url
-      });
+      if (!silent) {
+        console.log("🔒 Not authenticated:", {
+          status: error.response?.status,
+          message: error.message
+        });
+      }
       
-      // Clear any stale data
-      setUserData(null);
-      setIsAuthenticated(false);
-      localStorage.removeItem('userData');
+      // 401 is EXPECTED when not logged in - don't treat as error
+      if (error.response?.status === 401) {
+        // Clear any stale data
+        setUserData(null);
+        setIsAuthenticated(false);
+        localStorage.removeItem('userData');
+        return { success: false, error: "Not authenticated" };
+      }
+      
+      // For other errors, show them
+      if (!silent) {
+        console.error("Auth check error:", error);
+      }
     } finally {
-      setLoadingUser(false);
+      if (!silent) setLoadingUser(false);
+      setAuthChecked(true);
     }
-    return null;
+    return { success: false, error: "Auth check failed" };
   }, []);
 
   // Login function
   const login = useCallback(async (email, password) => {
     try {
-      console.log('Attempting login...');
+      console.log('🔐 Attempting login...');
       
       const response = await axios.post(
         "/api/auth/signin",
@@ -99,6 +87,10 @@ function UserContextProvider({ children }) {
         setUserData(response.data.user);
         setIsAuthenticated(true);
         localStorage.setItem('userData', JSON.stringify(response.data.user));
+        
+        // Verify the login worked
+        await checkAuth(true);
+        
         return { success: true, data: response.data };
       }
       return { success: false, error: "No user data returned" };
@@ -114,12 +106,12 @@ function UserContextProvider({ children }) {
         error: error.response?.data?.message || "Login failed. Please check your credentials." 
       };
     }
-  }, []);
+  }, [checkAuth]);
 
   // Signup function
   const signup = useCallback(async (name, email, password) => {
     try {
-      console.log('Attempting signup...');
+      console.log('📝 Attempting signup...');
       
       const response = await axios.post(
         "/api/auth/signup",
@@ -135,6 +127,10 @@ function UserContextProvider({ children }) {
         setUserData(response.data.user);
         setIsAuthenticated(true);
         localStorage.setItem('userData', JSON.stringify(response.data.user));
+        
+        // Verify the signup worked
+        await checkAuth(true);
+        
         return { success: true, data: response.data };
       }
       return { success: false, error: "No user data returned" };
@@ -150,61 +146,12 @@ function UserContextProvider({ children }) {
         error: error.response?.data?.message || "Signup failed. Please try again." 
       };
     }
-  }, []);
-
-  // Get Gemini response
-  const getGeminiResponse = useCallback(async (command) => {
-    if (!command || typeof command !== "string") {
-      return {
-        type: "error",
-        userInput: command,
-        response: "Please provide a valid command",
-        searchQuery: null,
-        action: null,
-        parameters: {},
-        actionUrl: null,
-        requiresAction: false,
-        timestamp: new Date().toISOString()
-      };
-    }
-
-    try {
-      const response = await axios.post(
-        "/api/user/ask",
-        { command },
-        { 
-          withCredentials: true,
-          timeout: 30000
-        }
-      );
-      
-      return response.data;
-    } catch (error) {
-      console.error("Assistant error:", error);
-      
-      if (error.response?.status === 401) {
-        setUserData(null);
-        setIsAuthenticated(false);
-        localStorage.removeItem('userData');
-      }
-      
-      return {
-        type: "error",
-        userInput: command,
-        response: "I'm having trouble connecting. Please check your internet and try again.",
-        searchQuery: null,
-        action: null,
-        parameters: {},
-        actionUrl: null,
-        requiresAction: false,
-        timestamp: new Date().toISOString()
-      };
-    }
-  }, []);
+  }, [checkAuth]);
 
   // Logout function
   const logout = useCallback(async () => {
     try {
+      console.log('🚪 Logging out...');
       await axios.post("/api/auth/logout", {}, { withCredentials: true });
     } catch (error) {
       console.error("Logout error:", error);
@@ -215,12 +162,36 @@ function UserContextProvider({ children }) {
       localStorage.removeItem('selectedAssistantImage');
       localStorage.removeItem('customAssistantImages');
       localStorage.removeItem('selectedImageIndex');
+      console.log('✅ Logged out successfully');
     }
   }, []);
 
-  // Initialize - check auth on mount
+  // Initialize - check auth on mount (silently)
   useEffect(() => {
-    checkAuth();
+    const initAuth = async () => {
+      // First, check if we have localStorage data
+      const savedUser = localStorage.getItem('userData');
+      if (savedUser) {
+        try {
+          const user = JSON.parse(savedUser);
+          // Verify the token is still valid
+          const result = await checkAuth(true);
+          if (!result.success) {
+            // Token expired, clear localStorage
+            localStorage.removeItem('userData');
+          }
+        } catch (error) {
+          console.log('Error checking saved auth:', error);
+          localStorage.removeItem('userData');
+        }
+      } else {
+        // No saved user, just do a silent check
+        await checkAuth(true);
+      }
+      setLoadingUser(false);
+    };
+    
+    initAuth();
   }, [checkAuth]);
 
   const value = {
@@ -229,21 +200,11 @@ function UserContextProvider({ children }) {
     setUserData,
     loadingUser,
     isAuthenticated,
+    authChecked,
     checkAuth,
     login,
     signup,
-    getGeminiResponse,
-    logout,
-    updateUserImage: (imageUrl) => {
-      if (userData) {
-        const updatedUser = {
-          ...userData,
-          assistantImage: imageUrl
-        };
-        setUserData(updatedUser);
-        localStorage.setItem('userData', JSON.stringify(updatedUser));
-      }
-    }
+    logout
   };
 
   return (
