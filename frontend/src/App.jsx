@@ -1,4 +1,3 @@
-// src/App.jsx
 import React, { useContext } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import SignUp from "./pages/SignUp.jsx";
@@ -24,26 +23,15 @@ function App() {
     );
   }
 
-  console.log("🔄 App rendering - Auth status:", {
-    isAuthenticated,
-    hasUserData: !!userData,
-    loadingUser,
-    authChecked
-  });
-
   return (
     <Routes>
-      {/* Root route - smart redirect */}
+      {/* Root redirect */}
       <Route 
         path="/" 
         element={
-          isAuthenticated && userData ? (
-            // User is logged in
-            userData.assistantName ? 
-              <Home /> : // Has assistant name, go to home
-              <Customize /> // No assistant name, go to customize
+          isAuthenticated ? (
+            userData?.assistantName ? <Home /> : <Navigate to="/customize" />
           ) : (
-            // User is not logged in
             <Navigate to="/signin" />
           )
         } 
@@ -52,39 +40,28 @@ function App() {
       {/* Public routes */}
       <Route 
         path="/signin" 
-        element={
-          isAuthenticated ? 
-            <Navigate to="/" /> : 
-            <SignIn />
-        } 
+        element={!isAuthenticated ? <SignIn /> : <Navigate to="/" />} 
       />
       
       <Route 
         path="/signup" 
-        element={
-          isAuthenticated ? 
-            <Navigate to="/" /> : 
-            <SignUp />
-        } 
+        element={!isAuthenticated ? <SignUp /> : <Navigate to="/" />} 
       />
       
       {/* Protected routes */}
       <Route 
         path="/customize" 
-        element={
-          isAuthenticated ? 
-            <Customize /> : 
-            <Navigate to="/signin" />
-        } 
+        element={isAuthenticated ? <Customize /> : <Navigate to="/signin" />} 
       />
       
       <Route 
         path="/customize2" 
-        element={
-          isAuthenticated ? 
-            <Customize2 /> : 
-            <Navigate to="/signin" />
-        } 
+        element={isAuthenticated ? <Customize2 /> : <Navigate to="/signin" />} 
+      />
+      
+      <Route 
+        path="/home" 
+        element={isAuthenticated ? <Home /> : <Navigate to="/signin" />} 
       />
       
       {/* Catch all */}
@@ -93,5 +70,4 @@ function App() {
   );
 }
 
-// ADD THIS LINE - THIS IS WHAT'S MISSING
 export default App;
