@@ -1,111 +1,107 @@
-// src/context/UserContext.jsx
+// src/context/UserContext.jsx - FIXED VERSION
 import React, { createContext, useState, useEffect, useCallback } from "react";
-import axios from "axios";
 
 export const userDataContext = createContext();
 
-// IMPORTANT: Make sure this URL matches your actual backend
 const serverUrl = "https://ai-virtual-assistant-20b.onrender.com";
-
-// Configure axios - SILENT MODE for 401 errors
-const axiosInstance = axios.create({
-  baseURL: serverUrl,
-  withCredentials: true,
-  timeout: 10000
-});
-
-// Add response interceptor to SILENTLY handle 401 errors
-axiosInstance.interceptors.response.use(
-  response => response,
-  error => {
-    // SILENTLY handle 401 - don't log as error, it's expected
-    if (error.response?.status === 401) {
-      console.log("🔐 Not authenticated (expected)");
-      return Promise.reject({ 
-        ...error, 
-        isAuthError: true, 
-        silent: true 
-      });
-    }
-    
-    // For other errors, log them
-    console.error("API Error:", error.message);
-    return Promise.reject(error);
-  }
-);
 
 function UserContextProvider({ children }) {
   const [userData, setUserData] = useState(() => {
-    // Try to load from localStorage
     const saved = localStorage.getItem('userData');
     return saved ? JSON.parse(saved) : null;
   });
   const [loadingUser, setLoadingUser] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
 
-  // Check authentication status - SILENT mode
-  const checkAuth = useCallback(async (silent = true) => {
+  // SIMPLE fetch function that won't log errors
+  const silentFetch = useCallback(async (endpoint) => {
     try {
-      if (!silent) setLoadingUser(true);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
       
-      const response = await axiosInstance.get("/api/user/current");
+      const response = await fetch(`${serverUrl}${endpoint}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+        },
+        signal: controller.signal
+      });
       
-      if (response.data && response.data._id) {
-        console.log('✅ User authenticated:', response.data.email);
-        setUserData(response.data);
-        setIsAuthenticated(true);
-        localStorage.setItem('userData', JSON.stringify(response.data));
-        return { success: true, user: response.data };
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        return await response.json();
       }
+      
+      // For 401, return null (no error thrown)
+      if (response.status === 401) {
+        return null;
+      }
+      
+      return null;
     } catch (error) {
-      // Don't log 401 errors - they're expected
-      if (!error.silent) {
-        console.log("Auth check failed:", error.message);
+      // Don't throw errors - just return null
+      return null;
+    }
+  }, []);
+
+  // Check authentication - NO ERROR LOGGING
+  const checkAuth = useCallback(async () => {
+    try {
+      const data = await silentFetch('/api/user/current');
+      
+      if (data && data._id) {
+        setUserData(data);
+        setIsAuthenticated(true);
+        localStorage.setItem('userData', JSON.stringify(data));
+        return { success: true, user: data };
       }
       
-      // Clear any stale data
+      // Not authenticated - clear silently
       setUserData(null);
       setIsAuthenticated(false);
       localStorage.removeItem('userData');
+      return { success: false };
       
-      return { success: false, error: "Not authenticated" };
-    } finally {
-      if (!silent) setLoadingUser(false);
-      setAuthChecked(true);
+    } catch (error) {
+      // Should never reach here with silentFetch
+      setUserData(null);
+      setIsAuthenticated(false);
+      localStorage.removeItem('userData');
+      return { success: false };
     }
-    return { success: false, error: "Auth check failed" };
-  }, []);
+  }, [silentFetch]);
 
   // Login function
   const login = useCallback(async (email, password) => {
     try {
-      console.log('🔐 Attempting login...');
+      const response = await fetch(`${serverUrl}/api/auth/signin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password })
+      });
       
-      // Use regular axios for login (not the silent instance)
-      const response = await axios.post(
-        `${serverUrl}/api/auth/signin`,
-        { email, password },
-        { 
-          withCredentials: true,
-          timeout: 15000
-        }
-      );
+      const data = await response.json();
       
-      if (response.data.user) {
-        console.log('✅ Login successful');
-        setUserData(response.data.user);
+      if (response.ok && data.user) {
+        setUserData(data.user);
         setIsAuthenticated(true);
-        localStorage.setItem('userData', JSON.stringify(response.data.user));
+        localStorage.setItem('userData', JSON.stringify(data.user));
         
-        return { success: true, data: response.data };
+        return { success: true, data };
       }
-      return { success: false, error: "No user data returned" };
-    } catch (error) {
-      console.log("Login failed:", error.response?.data?.message || error.message);
+      
       return { 
         success: false, 
-        error: error.response?.data?.message || "Login failed. Please check your credentials." 
+        error: data.message || "Login failed" 
+      };
+      
+    } catch (error) {
+      return { 
+        success: false, 
+        error: "Network error. Please try again." 
       };
     }
   }, []);
@@ -113,31 +109,32 @@ function UserContextProvider({ children }) {
   // Signup function
   const signup = useCallback(async (name, email, password) => {
     try {
-      console.log('📝 Attempting signup...');
+      const response = await fetch(`${serverUrl}/api/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name, email, password })
+      });
       
-      const response = await axios.post(
-        `${serverUrl}/api/auth/signup`,
-        { name, email, password },
-        { 
-          withCredentials: true,
-          timeout: 15000
-        }
-      );
+      const data = await response.json();
       
-      if (response.data.user) {
-        console.log('✅ Signup successful');
-        setUserData(response.data.user);
+      if (response.ok && data.user) {
+        setUserData(data.user);
         setIsAuthenticated(true);
-        localStorage.setItem('userData', JSON.stringify(response.data.user));
+        localStorage.setItem('userData', JSON.stringify(data.user));
         
-        return { success: true, data: response.data };
+        return { success: true, data };
       }
-      return { success: false, error: "No user data returned" };
-    } catch (error) {
-      console.log("Signup failed:", error.response?.data?.message || error.message);
+      
       return { 
         success: false, 
-        error: error.response?.data?.message || "Signup failed. Please try again." 
+        error: data.message || "Signup failed" 
+      };
+      
+    } catch (error) {
+      return { 
+        success: false, 
+        error: "Network error. Please try again." 
       };
     }
   }, []);
@@ -145,9 +142,12 @@ function UserContextProvider({ children }) {
   // Logout function
   const logout = useCallback(async () => {
     try {
-      await axios.post(`${serverUrl}/api/auth/logout`, {}, { withCredentials: true });
+      await fetch(`${serverUrl}/api/auth/logout`, {
+        method: 'POST',
+        credentials: 'include'
+      });
     } catch (error) {
-      console.log("Logout error:", error.message);
+      // Silent error
     } finally {
       setUserData(null);
       setIsAuthenticated(false);
@@ -155,34 +155,31 @@ function UserContextProvider({ children }) {
       localStorage.removeItem('selectedAssistantImage');
       localStorage.removeItem('customAssistantImages');
       localStorage.removeItem('selectedImageIndex');
-      console.log('✅ Logged out');
     }
   }, []);
 
-  // Initialize - check auth on mount (silently)
+  // Initialize - with delay to avoid early requests
   useEffect(() => {
     const initAuth = async () => {
-      // Check localStorage first
+      // Wait a bit to ensure page is loaded
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       const savedUser = localStorage.getItem('userData');
+      
       if (savedUser) {
         try {
           const user = JSON.parse(savedUser);
-          // Try to validate the saved user
-          const result = await checkAuth(true);
-          if (result.success) {
-            console.log('✅ Restored session from localStorage');
-          } else {
-            console.log('❌ Saved session expired');
+          const result = await checkAuth();
+          if (!result.success) {
             localStorage.removeItem('userData');
           }
-        } catch (error) {
-          console.log('Error checking saved auth');
+        } catch {
           localStorage.removeItem('userData');
         }
       } else {
-        // No saved user, just do a silent check
-        await checkAuth(true);
+        await checkAuth();
       }
+      
       setLoadingUser(false);
     };
     
@@ -195,7 +192,6 @@ function UserContextProvider({ children }) {
     setUserData,
     loadingUser,
     isAuthenticated,
-    authChecked,
     checkAuth,
     login,
     signup,
