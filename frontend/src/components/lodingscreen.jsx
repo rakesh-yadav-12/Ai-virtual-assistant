@@ -1,4 +1,4 @@
-import React from "react";
+ import React from "react";
 import { FaRobot } from "react-icons/fa";
 
 function LoadingScreen() {
