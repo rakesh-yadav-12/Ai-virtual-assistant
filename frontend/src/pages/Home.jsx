@@ -1,4 +1,4 @@
-// src/pages/Home.jsx - SIMPLIFIED VERSION
+// src/pages/Home.jsx
 import React, { useContext, useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { userDataContext } from "../context/UserContext.jsx";
@@ -11,7 +11,6 @@ function Home() {
   const [command, setCommand] = useState("");
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [assistantSpeaking, setAssistantSpeaking] = useState(false);
 
   // Refs
   const isMobile = useRef(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
@@ -217,4 +216,5 @@ function Home() {
   );
 }
 
+// Make sure this export is present
 export default Home;
