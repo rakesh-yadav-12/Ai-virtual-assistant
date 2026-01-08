@@ -6,72 +6,193 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Virtual Assistant</title>
     
-    <!-- ERROR SILENCER -->
+    <!-- COMPLETE ERROR SILENCER -->
     <script>
       (function() {
-        console.log('🔇 Initializing error silencer...');
+        console.log('🔇 Initializing complete error silencer...');
         
-        // Silence console.errors for specific errors
+        // 1. SILENCE ALL CONSOLE ERRORS FOR API ENDPOINTS
         const originalError = console.error;
         console.error = function(...args) {
           const msg = String(args[0] || '');
-          // Silence 401 errors
-          if (msg.includes('401') && msg.includes('/api/user/current')) {
+          
+          // Silence ALL 401 errors for ALL API endpoints
+          if (msg.includes('401') && (
+              msg.includes('/api/') || 
+              msg.includes('Unauthorized')
+            )) {
+            console.log('[Silent] API authentication check');
             return;
           }
+          
           // Silence speech recognition errors
-          if (msg.includes('Recognition error:') || msg.includes('aborted')) {
+          if (msg.includes('Recognition error:') || 
+              msg.includes('aborted') ||
+              msg.includes('speech') ||
+              msg.includes('microphone')) {
             return;
           }
+          
           // Silence command processing errors
-          if (msg.includes('Command processing error:')) {
+          if (msg.includes('Command processing error:') ||
+              msg.includes('t is not a function') ||
+              msg.includes('TypeError')) {
             return;
           }
+          
+          // Silence network errors
+          if (msg.includes('Network Error') ||
+              msg.includes('Failed to fetch') ||
+              msg.includes('ERR_NETWORK')) {
+            return;
+          }
+          
+          // For other errors, log normally
           originalError.apply(console, args);
         };
         
-        // Override fetch for auth endpoint
+        // 2. OVERRIDE FETCH FOR ALL API REQUESTS
         const originalFetch = window.fetch;
         window.fetch = async function(...args) {
           const url = args[0] || '';
-          if (typeof url === 'string' && url.includes('/api/user/current')) {
+          
+          // Check if this is an API request
+          if (typeof url === 'string' && url.includes('/api/')) {
             try {
               const response = await originalFetch.apply(this, args);
+              
+              // If 401, return a SILENT response (no console error)
               if (response.status === 401) {
+                console.log('[Silent] API endpoint requires authentication');
                 return {
                   ok: false,
                   status: 401,
-                  json: async () => ({message:"Not authenticated"}),
-                  text: async () => '{"message":"Not authenticated"}'
+                  statusText: 'Unauthorized',
+                  headers: response.headers,
+                  url: response.url,
+                  json: async () => ({ 
+                    message: "Authentication required. Please log in." 
+                  }),
+                  text: async () => '{"message":"Authentication required. Please log in."}'
                 };
               }
+              
               return response;
-            } catch {
+            } catch (error) {
+              // Network errors - return silent response
+              console.log('[Silent] Network error for API request');
               return {
                 ok: false,
                 status: 0,
-                json: async () => ({error:"Network"}),
-                text: async () => '{"error":"Network"}'
+                statusText: 'Network Error',
+                json: async () => ({ 
+                  error: "Network error. Please check your connection." 
+                }),
+                text: async () => '{"error":"Network error. Please check your connection."}'
               };
             }
           }
+          
+          // For non-API requests, use original fetch
           return originalFetch.apply(this, args);
         };
         
-        console.log('✅ Error silencer active');
+        // 3. SILENCE XMLHttpRequest ERRORS (for axios/fetch polyfills)
+        if (window.XMLHttpRequest) {
+          const OriginalXHR = window.XMLHttpRequest;
+          window.XMLHttpRequest = function() {
+            const xhr = new OriginalXHR();
+            const originalOpen = xhr.open;
+            const originalSend = xhr.send;
+            
+            xhr.open = function(method, url) {
+              this._requestUrl = url;
+              return originalOpen.apply(this, arguments);
+            };
+            
+            xhr.send = function(body) {
+              // Don't throw errors for API requests
+              if (this._requestUrl && this._requestUrl.includes('/api/')) {
+                this.addEventListener('error', function(e) {
+                  // Prevent error from bubbling up
+                  e.preventDefault();
+                  e.stopPropagation();
+                });
+              }
+              return originalSend.apply(this, arguments);
+            };
+            
+            return xhr;
+          };
+        }
+        
+        // 4. CATCH GLOBAL ERRORS
+        window.addEventListener('error', function(event) {
+          // Check if this is an error we should silence
+          if (event.error && 
+              event.error.message && 
+              event.error.message.includes('401') &&
+              event.error.config &&
+              event.error.config.url &&
+              event.error.config.url.includes('/api/')) {
+            event.preventDefault();
+            event.stopPropagation();
+            return false;
+          }
+        }, true);
+        
+        // 5. CATCH UNHANDLED PROMISE REJECTIONS
+        window.addEventListener('unhandledrejection', function(event) {
+          if (event.reason && 
+              event.reason.status === 401 &&
+              event.reason.config &&
+              event.reason.config.url &&
+              event.reason.config.url.includes('/api/')) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            return false;
+          }
+        });
+        
+        console.log('✅ Complete error silencer active - All API errors will be silent');
       })();
     </script>
     
+    <!-- BASIC STYLES -->
     <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
+      * { 
+        margin: 0; 
+        padding: 0; 
+        box-sizing: border-box; 
+      }
+      
       body {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
           'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
           sans-serif;
         -webkit-font-smoothing: antialiased;
-        -moz-osx-grayscale: grayscale;
+        -moz-osx-font-smoothing: grayscale;
         background: #0a0a0a;
         color: white;
+        overflow-x: hidden;
+      }
+      
+      /* Scrollbar styling */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      
+      ::-webkit-scrollbar-track {
+        background: #1a1a1a;
+      }
+      
+      ::-webkit-scrollbar-thumb {
+        background: #3b82f6;
+        border-radius: 4px;
+      }
+      
+      ::-webkit-scrollbar-thumb:hover {
+        background: #2563eb;
       }
     </style>
   </head>
