@@ -1,4 +1,4 @@
-// src/context/UserContext.jsx
+// src/context/UserContext.jsx - COMPLETE FIXED VERSION
 import React, { createContext, useState, useEffect, useCallback } from "react";
 
 export const userDataContext = createContext();
@@ -13,7 +13,7 @@ function UserContextProvider({ children }) {
   const [loadingUser, setLoadingUser] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Silent auth check - no error logging
+  // Silent auth check
   const checkAuth = useCallback(async () => {
     try {
       const controller = new AbortController();
@@ -50,6 +50,81 @@ function UserContextProvider({ children }) {
       setIsAuthenticated(false);
       localStorage.removeItem('userData');
       return { success: false, error: "Network error" };
+    }
+  }, []);
+
+  // Gemini Response function
+  const getGeminiResponse = useCallback(async (command) => {
+    if (!command || typeof command !== "string") {
+      return {
+        type: "error",
+        userInput: command,
+        response: "Please provide a valid command",
+        searchQuery: null,
+        action: null,
+        parameters: {},
+        actionUrl: null,
+        requiresAction: false,
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    try {
+      const response = await fetch(`${serverUrl}/api/user/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ command })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data;
+      }
+      
+      // Handle errors
+      if (response.status === 401) {
+        setUserData(null);
+        setIsAuthenticated(false);
+        localStorage.removeItem('userData');
+        
+        return {
+          type: "auth_error",
+          userInput: command,
+          response: "Please log in again to continue.",
+          searchQuery: null,
+          action: null,
+          parameters: {},
+          actionUrl: null,
+          requiresAction: false,
+          timestamp: new Date().toISOString()
+        };
+      }
+      
+      return {
+        type: "error",
+        userInput: command,
+        response: "I'm having trouble connecting. Please try again.",
+        searchQuery: null,
+        action: null,
+        parameters: {},
+        actionUrl: null,
+        requiresAction: false,
+        timestamp: new Date().toISOString()
+      };
+      
+    } catch (error) {
+      return {
+        type: "error",
+        userInput: command,
+        response: "Network error. Please check your connection.",
+        searchQuery: null,
+        action: null,
+        parameters: {},
+        actionUrl: null,
+        requiresAction: false,
+        timestamp: new Date().toISOString()
+      };
     }
   }, []);
 
@@ -179,7 +254,8 @@ function UserContextProvider({ children }) {
     checkAuth,
     login,
     signup,
-    logout
+    logout,
+    getGeminiResponse // Add this
   };
 
   return (
