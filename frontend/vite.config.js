@@ -11,18 +11,33 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/api/, '/api'),
-        configure: (proxy) => {
-          proxy.on('proxyReq', (proxyReq, req) => {
+        configure: (proxy, _options) => {
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
             console.log(`[PROXY] ${req.method} ${req.url}`);
+          });
+          proxy.on('proxyRes', (proxyRes, req, _res) => {
+            console.log(`[PROXY RESPONSE] ${req.url} -> ${proxyRes.statusCode}`);
+            
+            // Fix cookie domain/path issues
+            const setCookieHeaders = proxyRes.headers['set-cookie'];
+            if (setCookieHeaders) {
+              setCookieHeaders.forEach((cookie, i) => {
+                // Fix cookie domain and security settings
+                const newCookie = cookie
+                  .replace(/Domain=.*?;/i, '') // Remove domain restriction
+                  .replace(/Secure;/i, '') // Remove Secure flag for local dev
+                  .replace(/SameSite=Strict/i, 'SameSite=Lax'); // Change SameSite
+                proxyRes.headers['set-cookie'][i] = newCookie;
+              });
+            }
           });
         },
       }
     },
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-      'Access-Control-Allow-Headers': 'X-Requested-With, content-type, Authorization',
-      'Access-Control-Allow-Credentials': 'true'
+    // Allow all origins during development
+    cors: {
+      origin: '*',
+      credentials: true,
     }
   },
   build: {
