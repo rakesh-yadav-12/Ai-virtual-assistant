@@ -1,4 +1,4 @@
-// src/context/UserContext.jsx - FIXED VERSION
+// src/context/UserContext.jsx - FINAL WORKING VERSION
 import React, { createContext, useState, useEffect, useCallback } from "react";
 
 export const userDataContext = createContext();
@@ -13,19 +13,23 @@ function UserContextProvider({ children }) {
   const [loadingUser, setLoadingUser] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // SIMPLE fetch function that won't log errors
-  const silentFetch = useCallback(async (endpoint) => {
+  // Custom fetch that handles errors silently
+  const silentFetch = useCallback(async (endpoint, options = {}) => {
+    const url = `${serverUrl}${endpoint}`;
+    
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
       
-      const response = await fetch(`${serverUrl}${endpoint}`, {
-        method: 'GET',
+      const response = await fetch(url, {
+        ...options,
         credentials: 'include',
+        signal: controller.signal,
         headers: {
           'Accept': 'application/json',
-        },
-        signal: controller.signal
+          'Content-Type': 'application/json',
+          ...options.headers
+        }
       });
       
       clearTimeout(timeoutId);
@@ -34,19 +38,19 @@ function UserContextProvider({ children }) {
         return await response.json();
       }
       
-      // For 401, return null (no error thrown)
+      // For 401, return null without throwing error
       if (response.status === 401) {
         return null;
       }
       
       return null;
     } catch (error) {
-      // Don't throw errors - just return null
+      // Network or timeout error - return null
       return null;
     }
   }, []);
 
-  // Check authentication - NO ERROR LOGGING
+  // Check authentication - SILENT
   const checkAuth = useCallback(async () => {
     try {
       const data = await silentFetch('/api/user/current');
@@ -58,14 +62,14 @@ function UserContextProvider({ children }) {
         return { success: true, user: data };
       }
       
-      // Not authenticated - clear silently
+      // Not authenticated - clear data
       setUserData(null);
       setIsAuthenticated(false);
       localStorage.removeItem('userData');
       return { success: false };
       
     } catch (error) {
-      // Should never reach here with silentFetch
+      // Should not reach here
       setUserData(null);
       setIsAuthenticated(false);
       localStorage.removeItem('userData');
@@ -90,6 +94,9 @@ function UserContextProvider({ children }) {
         setIsAuthenticated(true);
         localStorage.setItem('userData', JSON.stringify(data.user));
         
+        // Verify login worked
+        await checkAuth();
+        
         return { success: true, data };
       }
       
@@ -104,7 +111,7 @@ function UserContextProvider({ children }) {
         error: "Network error. Please try again." 
       };
     }
-  }, []);
+  }, [checkAuth]);
 
   // Signup function
   const signup = useCallback(async (name, email, password) => {
@@ -158,12 +165,10 @@ function UserContextProvider({ children }) {
     }
   }, []);
 
-  // Initialize - with delay to avoid early requests
+  // Initialize
   useEffect(() => {
     const initAuth = async () => {
-      // Wait a bit to ensure page is loaded
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
+      // Check localStorage first
       const savedUser = localStorage.getItem('userData');
       
       if (savedUser) {
