@@ -3,7 +3,13 @@ import React, { createContext, useState, useEffect, useCallback } from "react";
 
 export const userDataContext = createContext();
 
-const serverUrl = "https://ai-virtual-assistant-20b.onrender.com";
+// Use proxy URL for development, direct URL for production
+const getServerUrl = () => {
+  if (import.meta.env.DEV) {
+    return ''; // Use proxy during development
+  }
+  return "https://ai-virtual-assistant-20b.onrender.com";
+};
 
 function UserContextProvider({ children }) {
   const [userData, setUserData] = useState(() => {
@@ -18,21 +24,41 @@ function UserContextProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
 
-  // SIMPLIFIED AUTH CHECK - No timeout, no abort controller
+  // Function to make API calls with proper credentials
+  const apiFetch = useCallback(async (endpoint, options = {}) => {
+    const serverUrl = getServerUrl();
+    const url = `${serverUrl}${endpoint}`;
+    
+    console.log(`🌐 API Call: ${endpoint}`);
+    
+    const defaultOptions = {
+      credentials: 'include', // Include cookies
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+      ...options,
+    };
+    
+    try {
+      const response = await fetch(url, defaultOptions);
+      console.log(`📡 Response: ${response.status} ${response.statusText} for ${endpoint}`);
+      return response;
+    } catch (error) {
+      console.error(`❌ Fetch error for ${endpoint}:`, error);
+      throw error;
+    }
+  }, []);
+
+  // Check authentication
   const checkAuth = useCallback(async () => {
     try {
-      console.log('🔍 Checking authentication status...');
+      console.log('🔍 Checking authentication...');
       
-      const response = await fetch(`${serverUrl}/api/user/current`, {
+      const response = await apiFetch('/api/user/current', {
         method: 'GET',
-        credentials: 'include', // THIS IS CRUCIAL - sends cookies
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
       });
-      
-      console.log('Auth check response status:', response.status);
       
       if (response.ok) {
         const data = await response.json();
@@ -43,7 +69,7 @@ function UserContextProvider({ children }) {
         return { success: true, user: data };
       }
       
-      // Any non-OK response means not authenticated
+      // If not authenticated, clear data
       console.log('🔒 Not authenticated or session expired');
       setUserData(null);
       setIsAuthenticated(false);
@@ -52,27 +78,20 @@ function UserContextProvider({ children }) {
       
     } catch (error) {
       console.log('⚠️ Network error during auth check:', error.message);
-      // Don't clear data on network errors - might be temporary
+      // Don't clear data on network errors
       return { success: false, error: "Network error" };
     }
-  }, []);
+  }, [apiFetch]);
 
-  // SIMPLIFIED LOGIN FUNCTION
+  // Login function
   const login = useCallback(async (email, password) => {
     try {
       console.log('🔐 Attempting login for:', email);
       
-      const response = await fetch(`${serverUrl}/api/auth/signin`, {
+      const response = await apiFetch('/api/auth/signin', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        credentials: 'include', // THIS IS CRUCIAL
         body: JSON.stringify({ email, password })
       });
-      
-      console.log('Login response status:', response.status);
       
       const data = await response.json();
       
@@ -85,21 +104,12 @@ function UserContextProvider({ children }) {
         setIsAuthenticated(true);
         localStorage.setItem('userData', JSON.stringify(data.user));
         
-        // Verify login worked immediately
-        const authResult = await checkAuth();
+        // Wait a moment, then verify the session
+        setTimeout(async () => {
+          await checkAuth();
+        }, 100);
         
-        if (authResult.success) {
-          console.log('✅ Session confirmed');
-          return { success: true, data };
-        } else {
-          console.log('⚠️ Session verification failed');
-          // Still return success since login worked, but warn
-          return { 
-            success: true, 
-            data,
-            warning: "Session verification failed but login succeeded"
-          };
-        }
+        return { success: true, data };
       }
       
       console.log('❌ Login failed:', data.message);
@@ -115,24 +125,17 @@ function UserContextProvider({ children }) {
         error: "Network error. Please check your connection." 
       };
     }
-  }, [checkAuth]);
+  }, [apiFetch, checkAuth]);
 
-  // SIMPLIFIED SIGNUP
+  // Signup function
   const signup = useCallback(async (name, email, password) => {
     try {
       console.log('📝 Creating account for:', email);
       
-      const response = await fetch(`${serverUrl}/api/auth/signup`, {
+      const response = await apiFetch('/api/auth/signup', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        credentials: 'include', // THIS IS CRUCIAL
         body: JSON.stringify({ name, email, password })
       });
-      
-      console.log('Signup response status:', response.status);
       
       const data = await response.json();
       
@@ -157,15 +160,14 @@ function UserContextProvider({ children }) {
         error: "Network error. Please try again." 
       };
     }
-  }, []);
+  }, [apiFetch]);
 
-  // SIMPLIFIED LOGOUT
+  // Logout function
   const logout = useCallback(async () => {
     try {
       console.log('🚪 Logging out...');
-      await fetch(`${serverUrl}/api/auth/logout`, {
+      await apiFetch('/api/auth/logout', {
         method: 'POST',
-        credentials: 'include'
       });
     } catch (error) {
       console.log('Logout error:', error.message);
@@ -175,9 +177,9 @@ function UserContextProvider({ children }) {
       localStorage.removeItem('userData');
       console.log('✅ Logged out');
     }
-  }, []);
+  }, [apiFetch]);
 
-  // SIMPLIFIED GEMINI RESPONSE
+  // Get Gemini response
   const getGeminiResponse = useCallback(async (command) => {
     if (!command || typeof command !== "string") {
       return {
@@ -190,17 +192,10 @@ function UserContextProvider({ children }) {
     try {
       console.log('🤖 Sending command:', command.substring(0, 50));
       
-      const response = await fetch(`${serverUrl}/api/user/ask`, {
+      const response = await apiFetch('/api/user/ask', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        credentials: 'include',
         body: JSON.stringify({ command })
       });
-      
-      console.log('Gemini response status:', response.status);
       
       if (response.ok) {
         const data = await response.json();
@@ -236,9 +231,9 @@ function UserContextProvider({ children }) {
         timestamp: new Date().toISOString()
       };
     }
-  }, []);
+  }, [apiFetch]);
 
-  // INITIAL AUTH CHECK - SIMPLIFIED
+  // Initialize auth
   useEffect(() => {
     const initAuth = async () => {
       console.log('🚀 Initializing app...');
@@ -252,14 +247,7 @@ function UserContextProvider({ children }) {
           console.log('📦 Found saved user:', user.email);
           
           // Try to verify with server
-          const result = await checkAuth();
-          
-          if (result.success) {
-            console.log('✅ Session restored from localStorage');
-          } else {
-            console.log('🔒 Saved session expired');
-            localStorage.removeItem('userData');
-          }
+          await checkAuth();
         } catch (error) {
           console.error('Error loading saved user:', error);
           localStorage.removeItem('userData');
@@ -276,7 +264,7 @@ function UserContextProvider({ children }) {
   }, [checkAuth]);
 
   const value = {
-    serverUrl,
+    serverUrl: getServerUrl(),
     userData,
     setUserData,
     loadingUser,
