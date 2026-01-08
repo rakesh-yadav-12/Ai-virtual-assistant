@@ -1,29 +1,24 @@
-import express from 'express';
-import { protect } from '../middleware/auth.middleware.js';
-import { 
-  getCurrentUser,
-  updateUserPreferences,
-  askAssistant 
-} from '../controllers/user.controller.js';
+import jwt from "jsonwebtoken";
 
-const router = express.Router();
+const isAuth = (req, res, next) => {
+  try {
+    const token = req.cookies?.token || req.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      return res.status(401).json({ 
+        message: "Authentication required. Please log in." 
+      });
+    }
 
-// Get current user (protected)
-router.get('/current', protect, getCurrentUser);
+    const verified = jwt.verify(token, process.env.JWT_SECRET);
+    req.userId = verified.userId;
+    next();
+  } catch (error) {
+    console.error("Auth middleware error:", error.message);
+    return res.status(401).json({ 
+      message: "Invalid or expired token. Please log in again." 
+    });
+  }
+};
 
-// Update user preferences (protected)
-router.post('/update', protect, updateUserPreferences);
-
-// Ask assistant (protected)
-router.post('/ask', protect, askAssistant);
-
-// Debug endpoint
-router.get('/debug', (req, res) => {
-  res.json({
-    cookies: req.cookies,
-    authenticated: !!req.cookies?.token,
-    timestamp: new Date().toISOString()
-  });
-});
-
-export default router;
+export default isAuth;
