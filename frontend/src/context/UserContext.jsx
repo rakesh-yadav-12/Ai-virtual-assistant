@@ -7,137 +7,60 @@ const serverUrl = "https://ai-virtual-assistant-20b.onrender.com";
 
 function UserContextProvider({ children }) {
   const [userData, setUserData] = useState(() => {
-    const saved = localStorage.getItem('userData');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('userData');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
   });
   const [loadingUser, setLoadingUser] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
 
-  // Silent auth check - SIMPLIFIED VERSION
-  const checkAuth = useCallback(async (silent = true) => {
+  // SIMPLIFIED AUTH CHECK - No timeout, no abort controller
+  const checkAuth = useCallback(async () => {
     try {
-      if (!silent) setLoadingUser(true);
+      console.log('🔍 Checking authentication status...');
       
       const response = await fetch(`${serverUrl}/api/user/current`, {
         method: 'GET',
-        credentials: 'include',
+        credentials: 'include', // THIS IS CRUCIAL - sends cookies
         headers: {
           'Accept': 'application/json',
-        }
+          'Content-Type': 'application/json',
+        },
       });
+      
+      console.log('Auth check response status:', response.status);
       
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ User authenticated:', data.email);
         setUserData(data);
         setIsAuthenticated(true);
         localStorage.setItem('userData', JSON.stringify(data));
         return { success: true, user: data };
       }
       
-      // If 401 or any error, user is not logged in
+      // Any non-OK response means not authenticated
+      console.log('🔒 Not authenticated or session expired');
       setUserData(null);
       setIsAuthenticated(false);
       localStorage.removeItem('userData');
       return { success: false, error: "Not authenticated" };
       
     } catch (error) {
-      // Network error or timeout
-      console.log("Auth check network error:", error.message);
-      setUserData(null);
-      setIsAuthenticated(false);
-      localStorage.removeItem('userData');
+      console.log('⚠️ Network error during auth check:', error.message);
+      // Don't clear data on network errors - might be temporary
       return { success: false, error: "Network error" };
-    } finally {
-      if (!silent) setLoadingUser(false);
-      setAuthChecked(true);
     }
   }, []);
 
-  // Gemini Response function with proper error handling
-  const getGeminiResponse = useCallback(async (command) => {
-    if (!command || typeof command !== "string") {
-      return {
-        type: "error",
-        userInput: command,
-        response: "Please provide a valid command",
-        searchQuery: null,
-        action: null,
-        parameters: {},
-        actionUrl: null,
-        requiresAction: false,
-        timestamp: new Date().toISOString()
-      };
-    }
-
-    try {
-      const response = await fetch(`${serverUrl}/api/user/ask`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify({ command })
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        return data;
-      }
-      
-      // Handle 401 - User needs to login again
-      if (response.status === 401) {
-        setUserData(null);
-        setIsAuthenticated(false);
-        localStorage.removeItem('userData');
-        
-        return {
-          type: "auth_error",
-          userInput: command,
-          response: "Your session has expired. Please log in again.",
-          searchQuery: null,
-          action: null,
-          parameters: {},
-          actionUrl: null,
-          requiresAction: false,
-          timestamp: new Date().toISOString()
-        };
-      }
-      
-      // Handle other errors
-      const errorData = await response.json().catch(() => ({}));
-      return {
-        type: "error",
-        userInput: command,
-        response: errorData.message || "I'm having trouble connecting. Please try again.",
-        searchQuery: null,
-        action: null,
-        parameters: {},
-        actionUrl: null,
-        requiresAction: false,
-        timestamp: new Date().toISOString()
-      };
-      
-    } catch (error) {
-      return {
-        type: "error",
-        userInput: command,
-        response: "Network error. Please check your connection.",
-        searchQuery: null,
-        action: null,
-        parameters: {},
-        actionUrl: null,
-        requiresAction: false,
-        timestamp: new Date().toISOString()
-      };
-    }
-  }, []);
-
-  // Login function - FIXED VERSION
+  // SIMPLIFIED LOGIN FUNCTION
   const login = useCallback(async (email, password) => {
     try {
-      console.log('🔐 Attempting login...');
+      console.log('🔐 Attempting login for:', email);
       
       const response = await fetch(`${serverUrl}/api/auth/signin`, {
         method: 'POST',
@@ -145,44 +68,59 @@ function UserContextProvider({ children }) {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        credentials: 'include',
+        credentials: 'include', // THIS IS CRUCIAL
         body: JSON.stringify({ email, password })
       });
+      
+      console.log('Login response status:', response.status);
       
       const data = await response.json();
       
       if (response.ok && data.user) {
-        console.log('✅ Login successful, user:', data.user.email);
+        console.log('✅ Login successful!');
+        console.log('User data received:', data.user);
+        
+        // Store user data
         setUserData(data.user);
         setIsAuthenticated(true);
         localStorage.setItem('userData', JSON.stringify(data.user));
         
-        // Wait a bit then verify
-        setTimeout(async () => {
-          await checkAuth(true);
-        }, 500);
+        // Verify login worked immediately
+        const authResult = await checkAuth();
         
-        return { success: true, data };
+        if (authResult.success) {
+          console.log('✅ Session confirmed');
+          return { success: true, data };
+        } else {
+          console.log('⚠️ Session verification failed');
+          // Still return success since login worked, but warn
+          return { 
+            success: true, 
+            data,
+            warning: "Session verification failed but login succeeded"
+          };
+        }
       }
       
+      console.log('❌ Login failed:', data.message);
       return { 
         success: false, 
-        error: data.message || "Login failed" 
+        error: data.message || "Login failed. Please check credentials." 
       };
       
     } catch (error) {
-      console.error("Login error:", error);
+      console.error('Login error:', error);
       return { 
         success: false, 
-        error: "Network error. Please try again." 
+        error: "Network error. Please check your connection." 
       };
     }
   }, [checkAuth]);
 
-  // Signup function
+  // SIMPLIFIED SIGNUP
   const signup = useCallback(async (name, email, password) => {
     try {
-      console.log('📝 Creating account...');
+      console.log('📝 Creating account for:', email);
       
       const response = await fetch(`${serverUrl}/api/auth/signup`, {
         method: 'POST',
@@ -190,14 +128,16 @@ function UserContextProvider({ children }) {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        credentials: 'include',
+        credentials: 'include', // THIS IS CRUCIAL
         body: JSON.stringify({ name, email, password })
       });
+      
+      console.log('Signup response status:', response.status);
       
       const data = await response.json();
       
       if (response.ok && data.user) {
-        console.log('✅ Account created');
+        console.log('✅ Account created successfully!');
         setUserData(data.user);
         setIsAuthenticated(true);
         localStorage.setItem('userData', JSON.stringify(data.user));
@@ -211,7 +151,7 @@ function UserContextProvider({ children }) {
       };
       
     } catch (error) {
-      console.error("Signup error:", error);
+      console.error('Signup error:', error);
       return { 
         success: false, 
         error: "Network error. Please try again." 
@@ -219,7 +159,7 @@ function UserContextProvider({ children }) {
     }
   }, []);
 
-  // Logout function
+  // SIMPLIFIED LOGOUT
   const logout = useCallback(async () => {
     try {
       console.log('🚪 Logging out...');
@@ -233,17 +173,75 @@ function UserContextProvider({ children }) {
       setUserData(null);
       setIsAuthenticated(false);
       localStorage.removeItem('userData');
-      localStorage.removeItem('selectedAssistantImage');
-      localStorage.removeItem('customAssistantImages');
-      localStorage.removeItem('selectedImageIndex');
       console.log('✅ Logged out');
     }
   }, []);
 
-  // Initialize - FIXED VERSION
+  // SIMPLIFIED GEMINI RESPONSE
+  const getGeminiResponse = useCallback(async (command) => {
+    if (!command || typeof command !== "string") {
+      return {
+        type: "error",
+        response: "Please provide a valid command",
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    try {
+      console.log('🤖 Sending command:', command.substring(0, 50));
+      
+      const response = await fetch(`${serverUrl}/api/user/ask`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({ command })
+      });
+      
+      console.log('Gemini response status:', response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Response received');
+        return data;
+      }
+      
+      if (response.status === 401) {
+        // Session expired
+        setUserData(null);
+        setIsAuthenticated(false);
+        localStorage.removeItem('userData');
+        
+        return {
+          type: "auth_error",
+          response: "Your session has expired. Please log in again.",
+          timestamp: new Date().toISOString()
+        };
+      }
+      
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        type: "error",
+        response: errorData.message || "I'm having trouble connecting. Please try again.",
+        timestamp: new Date().toISOString()
+      };
+      
+    } catch (error) {
+      console.error('Gemini API error:', error);
+      return {
+        type: "error",
+        response: "Network error. Please check your connection.",
+        timestamp: new Date().toISOString()
+      };
+    }
+  }, []);
+
+  // INITIAL AUTH CHECK - SIMPLIFIED
   useEffect(() => {
     const initAuth = async () => {
-      console.log('🔍 Checking authentication...');
+      console.log('🚀 Initializing app...');
       
       // Check localStorage first
       const savedUser = localStorage.getItem('userData');
@@ -251,28 +249,27 @@ function UserContextProvider({ children }) {
       if (savedUser) {
         try {
           const user = JSON.parse(savedUser);
-          console.log("Found saved user:", user.email);
+          console.log('📦 Found saved user:', user.email);
           
           // Try to verify with server
-          const result = await checkAuth(true);
+          const result = await checkAuth();
           
           if (result.success) {
-            console.log('✅ Session restored');
+            console.log('✅ Session restored from localStorage');
           } else {
-            console.log('🔒 Session expired');
+            console.log('🔒 Saved session expired');
             localStorage.removeItem('userData');
           }
         } catch (error) {
-          console.error("Error parsing saved user:", error);
+          console.error('Error loading saved user:', error);
           localStorage.removeItem('userData');
         }
       } else {
-        console.log("No saved user found");
-        // Still check with server in case cookies exist
-        await checkAuth(true);
+        console.log('👤 No saved user found');
       }
       
       setLoadingUser(false);
+      setAuthChecked(true);
     };
     
     initAuth();
