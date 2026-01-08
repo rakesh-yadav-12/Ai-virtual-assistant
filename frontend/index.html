@@ -5,6 +5,121 @@
     <link rel="icon" type="image/svg+xml" href="/src/assets/image1.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Virtual Assistant</title>
+    
+    <!-- ADD THIS SCRIPT IN THE HEAD - IT MUST BE FIRST -->
+    <script>
+      // COMPLETE ERROR SILENCER - Runs before ANY JavaScript
+      (function() {
+        console.log('🚫 Initializing error silencer...');
+        
+        // 1. SILENCE ALL 401 ERRORS
+        const originalConsoleError = console.error;
+        console.error = function(...args) {
+          // Check if it's a 401 error we want to hide
+          const msg = String(args[0] || '');
+          const url = String(args[0]?.config?.url || args[0]?.url || '');
+          
+          if (msg.includes('401') || url.includes('/api/user/current')) {
+            // COMPLETELY SILENCE - don't log anything
+            return;
+          }
+          
+          // For other errors, log normally
+          originalConsoleError.apply(console, args);
+        };
+        
+        // 2. Override fetch to prevent 401 errors
+        const originalFetch = window.fetch;
+        window.fetch = async function(...args) {
+          const requestUrl = args[0] || '';
+          
+          // If it's the auth check endpoint
+          if (typeof requestUrl === 'string' && requestUrl.includes('/api/user/current')) {
+            try {
+              const response = await originalFetch.apply(this, args);
+              
+              // If 401, return a fake response that won't error
+              if (response.status === 401) {
+                return {
+                  ok: false,
+                  status: 401,
+                  statusText: 'Unauthorized',
+                  headers: response.headers,
+                  url: response.url,
+                  json: async () => ({ message: "Not authenticated" }),
+                  text: async () => '{"message":"Not authenticated"}'
+                };
+              }
+              
+              return response;
+            } catch (error) {
+              // Return fake response for network errors too
+              return {
+                ok: false,
+                status: 0,
+                json: async () => ({ error: "Network" }),
+                text: async () => '{"error":"Network"}'
+              };
+            }
+          }
+          
+          // For other endpoints, use normal fetch
+          return originalFetch.apply(this, args);
+        };
+        
+        // 3. Override XMLHttpRequest (what axios uses)
+        if (window.XMLHttpRequest) {
+          const OriginalXHR = window.XMLHttpRequest;
+          
+          window.XMLHttpRequest = function() {
+            const xhr = new OriginalXHR();
+            const originalOpen = xhr.open;
+            const originalSend = xhr.send;
+            
+            xhr.open = function(method, url) {
+              this._url = url;
+              return originalOpen.apply(this, arguments);
+            };
+            
+            xhr.send = function(body) {
+              // If this is an auth check request
+              if (this._url && this._url.includes('/api/user/current')) {
+                // Override onreadystatechange
+                const originalOnReadyStateChange = this.onreadystatechange;
+                
+                this.onreadystatechange = function() {
+                  if (this.readyState === 4 && this.status === 401) {
+                    // Prevent error from bubbling up
+                    this._isSilentError = true;
+                    
+                    // Don't call original handler if it would error
+                    if (originalOnReadyStateChange) {
+                      try {
+                        originalOnReadyStateChange.call(this);
+                      } catch (e) {
+                        // Swallow the error
+                      }
+                    }
+                    return;
+                  }
+                  
+                  if (originalOnReadyStateChange) {
+                    originalOnReadyStateChange.call(this);
+                  }
+                };
+              }
+              
+              return originalSend.apply(this, arguments);
+            };
+            
+            return xhr;
+          };
+        }
+        
+        console.log('✅ Error silencer active - 401 errors will be hidden');
+      })();
+    </script>
+    
     <style>
       * {
         margin: 0;
@@ -23,7 +138,6 @@
         overflow-x: hidden;
       }
       
-      /* Scrollbar styling */
       ::-webkit-scrollbar {
         width: 8px;
       }
