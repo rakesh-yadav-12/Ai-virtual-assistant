@@ -23,11 +23,7 @@ app.use(cors({
     // Allow all origins during development/testing
     // In production, you should restrict this to your frontend domains
     const allowedOrigins = [
-      'https://ai-virtual-assistant-15f.onrender.com',
-      'https://ai-virtual-assistant-20f.onrender.com',
-      'https://ai-virtual-assistant-20b.onrender.com',
-      'http://localhost:5173',
-      'http://localhost:3000'
+      'https://ai-virtual-assistant-21f.onrender.com'
     ];
     
     // Allow requests with no origin (like mobile apps or curl requests)
