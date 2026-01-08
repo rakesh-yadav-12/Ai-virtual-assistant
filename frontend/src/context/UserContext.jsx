@@ -14,20 +14,23 @@ function UserContextProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
 
-  // Silent auth check
+  // Silent auth check with improved error handling
   const checkAuth = useCallback(async (silent = true) => {
     try {
       if (!silent) setLoadingUser(true);
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      console.log('🔍 Checking authentication at:', `${serverUrl}/api/user/current`);
       
       const response = await fetch(`${serverUrl}/api/user/current`, {
         method: 'GET',
-        credentials: 'include',
+        credentials: 'include', // This is crucial for cookies
         signal: controller.signal,
         headers: {
           'Accept': 'application/json',
+          'Cache-Control': 'no-cache',
         }
       });
       
@@ -35,23 +38,45 @@ function UserContextProvider({ children }) {
       
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ User authenticated:', data.name);
         setUserData(data);
         setIsAuthenticated(true);
         localStorage.setItem('userData', JSON.stringify(data));
         return { success: true, user: data };
       }
       
-      // 401 is expected - user is not logged in
+      // Handle 401 and other non-200 responses
+      if (response.status === 401) {
+        console.log('⚠️ User not authenticated (401)');
+        setUserData(null);
+        setIsAuthenticated(false);
+        localStorage.removeItem('userData');
+        return { success: false, error: "Not authenticated", status: 401 };
+      }
+      
+      // Handle other errors
+      console.log('⚠️ Auth check failed with status:', response.status);
       setUserData(null);
       setIsAuthenticated(false);
       localStorage.removeItem('userData');
-      return { success: false, error: "Not authenticated" };
+      return { success: false, error: `Status ${response.status}`, status: response.status };
       
     } catch (error) {
       // Network error or timeout
+      console.log('🌐 Network error during auth check:', error.message);
+      
+      // If we have cached user data, use it but mark as potentially stale
+      const cachedUser = localStorage.getItem('userData');
+      if (cachedUser) {
+        const user = JSON.parse(cachedUser);
+        console.log('📦 Using cached user data due to network error');
+        setUserData(user);
+        setIsAuthenticated(true);
+        return { success: true, user: user, cached: true };
+      }
+      
       setUserData(null);
       setIsAuthenticated(false);
-      localStorage.removeItem('userData');
       return { success: false, error: "Network error" };
     } finally {
       if (!silent) setLoadingUser(false);
@@ -59,7 +84,7 @@ function UserContextProvider({ children }) {
     }
   }, []);
 
-  // Gemini Response function with auth check
+  // Gemini Response function with improved auth handling
   const getGeminiResponse = useCallback(async (command) => {
     if (!command || typeof command !== "string") {
       return {
@@ -75,29 +100,12 @@ function UserContextProvider({ children }) {
       };
     }
 
-    // First check if we're authenticated
-    if (!isAuthenticated) {
-      // Try to check auth silently
-      const authResult = await checkAuth(true);
-      if (!authResult.success) {
-        return {
-          type: "auth_error",
-          userInput: command,
-          response: "Please log in again to continue.",
-          searchQuery: null,
-          action: null,
-          parameters: {},
-          actionUrl: null,
-          requiresAction: false,
-          timestamp: new Date().toISOString()
-        };
-      }
-    }
-
     try {
       const response = await fetch(`${serverUrl}/api/user/ask`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+        },
         credentials: 'include',
         body: JSON.stringify({ command })
       });
@@ -109,6 +117,7 @@ function UserContextProvider({ children }) {
       
       // Handle 401 - User needs to login again
       if (response.status === 401) {
+        console.log('🔒 Session expired during request');
         setUserData(null);
         setIsAuthenticated(false);
         localStorage.removeItem('userData');
@@ -126,6 +135,10 @@ function UserContextProvider({ children }) {
         };
       }
       
+      // Handle other errors
+      const errorText = await response.text();
+      console.log('❌ API error:', response.status, errorText);
+      
       return {
         type: "error",
         userInput: command,
@@ -139,6 +152,7 @@ function UserContextProvider({ children }) {
       };
       
     } catch (error) {
+      console.log('🌐 Network error in getGeminiResponse:', error);
       return {
         type: "error",
         userInput: command,
@@ -151,40 +165,53 @@ function UserContextProvider({ children }) {
         timestamp: new Date().toISOString()
       };
     }
-  }, [isAuthenticated, checkAuth]);
+  }, []);
 
-  // Login function
+  // Login function with improved cookie handling
   const login = useCallback(async (email, password) => {
     try {
-      console.log('🔐 Attempting login...');
+      console.log('🔐 Attempting login for:', email);
       
       const response = await fetch(`${serverUrl}/api/auth/signin`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+        headers: { 
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // This sends cookies
         body: JSON.stringify({ email, password })
       });
       
       const data = await response.json();
       
       if (response.ok && data.user) {
-        console.log('✅ Login successful');
+        console.log('✅ Login successful for:', data.user.name);
+        
+        // Set user data immediately
         setUserData(data.user);
         setIsAuthenticated(true);
         localStorage.setItem('userData', JSON.stringify(data.user));
         
-        // Verify login worked
-        await checkAuth(true);
+        // Verify login worked with a delay
+        setTimeout(async () => {
+          const verifyResult = await checkAuth(true);
+          if (verifyResult.success) {
+            console.log('✅ Session verified after login');
+          } else {
+            console.log('⚠️ Session verification failed after login');
+          }
+        }, 1000);
         
         return { success: true, data };
       }
       
+      console.log('❌ Login failed:', data.message);
       return { 
         success: false, 
         error: data.message || "Login failed" 
       };
       
     } catch (error) {
+      console.log('🌐 Login network error:', error);
       return { 
         success: false, 
         error: "Network error. Please try again." 
@@ -195,11 +222,13 @@ function UserContextProvider({ children }) {
   // Signup function
   const signup = useCallback(async (name, email, password) => {
     try {
-      console.log('📝 Creating account...');
+      console.log('📝 Creating account for:', email);
       
       const response = await fetch(`${serverUrl}/api/auth/signup`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+        },
         credentials: 'include',
         body: JSON.stringify({ name, email, password })
       });
@@ -207,7 +236,9 @@ function UserContextProvider({ children }) {
       const data = await response.json();
       
       if (response.ok && data.user) {
-        console.log('✅ Account created');
+        console.log('✅ Account created for:', data.user.name);
+        
+        // Set user data immediately
         setUserData(data.user);
         setIsAuthenticated(true);
         localStorage.setItem('userData', JSON.stringify(data.user));
@@ -215,12 +246,14 @@ function UserContextProvider({ children }) {
         return { success: true, data };
       }
       
+      console.log('❌ Signup failed:', data.message);
       return { 
         success: false, 
         error: data.message || "Signup failed" 
       };
       
     } catch (error) {
+      console.log('🌐 Signup network error:', error);
       return { 
         success: false, 
         error: "Network error. Please try again." 
@@ -237,44 +270,54 @@ function UserContextProvider({ children }) {
         credentials: 'include'
       });
     } catch (error) {
-      console.log('Logout error:', error.message);
+      console.log('⚠️ Logout network error:', error.message);
     } finally {
+      // Always clear local state
       setUserData(null);
       setIsAuthenticated(false);
       localStorage.removeItem('userData');
       localStorage.removeItem('selectedAssistantImage');
       localStorage.removeItem('customAssistantImages');
       localStorage.removeItem('selectedImageIndex');
-      console.log('✅ Logged out');
+      console.log('✅ Logged out locally');
     }
   }, []);
 
-  // Initialize
+  // Initialize auth on component mount
   useEffect(() => {
     const initAuth = async () => {
-      console.log('🔍 Checking authentication...');
+      console.log('🚀 Initializing authentication...');
       
-      // Check localStorage first
+      // First check if we have cached user data
       const savedUser = localStorage.getItem('userData');
       
       if (savedUser) {
         try {
           const user = JSON.parse(savedUser);
+          console.log('📦 Found cached user:', user.name);
+          
+          // Try to validate the session
           const result = await checkAuth(true);
-          if (!result.success) {
-            console.log('🔒 Session expired');
+          
+          if (result.success) {
+            console.log('✅ Cached session is valid');
+          } else if (result.status === 401) {
+            console.log('🔒 Cached session expired, clearing cache');
             localStorage.removeItem('userData');
           } else {
-            console.log('✅ Session restored');
+            console.log('⚠️ Using cached data due to network issues');
           }
-        } catch {
+        } catch (error) {
+          console.log('❌ Error parsing cached user data:', error);
           localStorage.removeItem('userData');
         }
       } else {
+        console.log('👤 No cached user found, checking auth');
         await checkAuth(true);
       }
       
       setLoadingUser(false);
+      console.log('🏁 Auth initialization complete');
     };
     
     initAuth();
