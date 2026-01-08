@@ -1,3 +1,13 @@
+// src/App.jsx
+import React, { useContext } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+import SignUp from "./pages/SignUp.jsx";
+import SignIn from "./pages/SignIn.jsx";
+import Customize from "./pages/Customize.jsx";
+import Home from "./pages/Home.jsx";
+import Customize2 from "./pages/Customize2.jsx";
+import { userDataContext } from "./context/UserContext.jsx";
+
 function App() {
   const { loadingUser, isAuthenticated, userData, authChecked } = useContext(userDataContext);
 
@@ -82,3 +92,6 @@ function App() {
     </Routes>
   );
 }
+
+// ADD THIS LINE - THIS IS WHAT'S MISSING
+export default App;
