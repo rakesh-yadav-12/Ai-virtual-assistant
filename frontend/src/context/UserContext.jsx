@@ -4,77 +4,96 @@ import axios from "axios";
 
 export const userDataContext = createContext();
 
-// IMPORTANT: Make sure this URL matches your actual backend
-const serverUrl = "https://ai-virtual-assistant-20b.onrender.com"; // Change this to match your backend
+const serverUrl = "https://ai-virtual-assistant-20b.onrender.com";
 
-// Configure axios
-axios.defaults.withCredentials = true;
-axios.defaults.baseURL = serverUrl;
+// Create a custom axios instance that SILENCES 401 errors
+const createAxiosInstance = () => {
+  const instance = axios.create({
+    baseURL: serverUrl,
+    withCredentials: true,
+    timeout: 10000
+  });
+
+  // Intercept responses to hide 401 errors
+  instance.interceptors.response.use(
+    response => response,
+    error => {
+      // SILENTLY handle 401 errors - don't log them
+      if (error.response?.status === 401) {
+        // Return a custom error that won't log to console
+        return Promise.reject({
+          isAuthError: true,
+          status: 401,
+          message: "Not authenticated"
+        });
+      }
+      
+      // For other errors, you can log them
+      if (error.response?.status >= 500) {
+        console.error("Server error:", error.message);
+      }
+      
+      return Promise.reject(error);
+    }
+  );
+
+  return instance;
+};
 
 function UserContextProvider({ children }) {
   const [userData, setUserData] = useState(() => {
-    // Try to load from localStorage on initial load
     const saved = localStorage.getItem('userData');
     return saved ? JSON.parse(saved) : null;
   });
   const [loadingUser, setLoadingUser] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
 
-  // Check authentication status - SILENTLY without throwing errors
+  // Create axios instance for this component
+  const axiosInstance = createAxiosInstance();
+
+  // Check authentication status
   const checkAuth = useCallback(async (silent = true) => {
     try {
       if (!silent) setLoadingUser(true);
       
-      console.log('🔍 Checking authentication...');
+      console.log('🔍 Checking authentication status...');
       
-      const response = await axios.get("/api/user/current", {
-        withCredentials: true,
-        timeout: 10000
-      });
+      const response = await axiosInstance.get("/api/user/current");
       
       if (response.data && response.data._id) {
-        console.log('✅ User authenticated:', response.data.email);
+        console.log('✅ User is authenticated');
         setUserData(response.data);
         setIsAuthenticated(true);
         localStorage.setItem('userData', JSON.stringify(response.data));
         return { success: true, user: response.data };
       }
     } catch (error) {
-      if (!silent) {
-        console.log("🔒 Not authenticated:", {
-          status: error.response?.status,
-          message: error.message
-        });
+      // 401 errors are handled silently by the interceptor
+      if (error.isAuthError) {
+        console.log('🔒 User is not authenticated (this is normal)');
+      } else if (!silent) {
+        console.log('Auth check failed:', error.message);
       }
       
-      // 401 is EXPECTED when not logged in - don't treat as error
-      if (error.response?.status === 401) {
-        // Clear any stale data
-        setUserData(null);
-        setIsAuthenticated(false);
-        localStorage.removeItem('userData');
-        return { success: false, error: "Not authenticated" };
-      }
+      // Clear any stale data
+      setUserData(null);
+      setIsAuthenticated(false);
+      localStorage.removeItem('userData');
       
-      // For other errors, show them
-      if (!silent) {
-        console.error("Auth check error:", error);
-      }
+      return { success: false, error: "Not authenticated" };
     } finally {
       if (!silent) setLoadingUser(false);
-      setAuthChecked(true);
     }
     return { success: false, error: "Auth check failed" };
-  }, []);
+  }, [axiosInstance]);
 
-  // Login function
+  // Login function - use regular axios to see actual errors
   const login = useCallback(async (email, password) => {
     try {
       console.log('🔐 Attempting login...');
       
       const response = await axios.post(
-        "/api/auth/signin",
+        `${serverUrl}/api/auth/signin`,
         { email, password },
         { 
           withCredentials: true,
@@ -83,24 +102,19 @@ function UserContextProvider({ children }) {
       );
       
       if (response.data.user) {
-        console.log('✅ Login successful:', response.data.user.email);
+        console.log('✅ Login successful!');
         setUserData(response.data.user);
         setIsAuthenticated(true);
         localStorage.setItem('userData', JSON.stringify(response.data.user));
         
-        // Verify the login worked
+        // Verify login worked
         await checkAuth(true);
         
         return { success: true, data: response.data };
       }
       return { success: false, error: "No user data returned" };
     } catch (error) {
-      console.error("❌ Login error:", {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message
-      });
-      
+      console.log('Login response:', error.response?.data);
       return { 
         success: false, 
         error: error.response?.data?.message || "Login failed. Please check your credentials." 
@@ -111,10 +125,10 @@ function UserContextProvider({ children }) {
   // Signup function
   const signup = useCallback(async (name, email, password) => {
     try {
-      console.log('📝 Attempting signup...');
+      console.log('📝 Creating account...');
       
       const response = await axios.post(
-        "/api/auth/signup",
+        `${serverUrl}/api/auth/signup`,
         { name, email, password },
         { 
           withCredentials: true,
@@ -123,38 +137,29 @@ function UserContextProvider({ children }) {
       );
       
       if (response.data.user) {
-        console.log('✅ Signup successful:', response.data.user.email);
+        console.log('✅ Account created successfully!');
         setUserData(response.data.user);
         setIsAuthenticated(true);
         localStorage.setItem('userData', JSON.stringify(response.data.user));
-        
-        // Verify the signup worked
-        await checkAuth(true);
         
         return { success: true, data: response.data };
       }
       return { success: false, error: "No user data returned" };
     } catch (error) {
-      console.error("❌ Signup error:", {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message
-      });
-      
+      console.log('Signup response:', error.response?.data);
       return { 
         success: false, 
         error: error.response?.data?.message || "Signup failed. Please try again." 
       };
     }
-  }, [checkAuth]);
+  }, []);
 
   // Logout function
   const logout = useCallback(async () => {
     try {
-      console.log('🚪 Logging out...');
-      await axios.post("/api/auth/logout", {}, { withCredentials: true });
+      await axios.post(`${serverUrl}/api/auth/logout`, {}, { withCredentials: true });
     } catch (error) {
-      console.error("Logout error:", error);
+      console.log('Logout error:', error.message);
     } finally {
       setUserData(null);
       setIsAuthenticated(false);
@@ -162,32 +167,34 @@ function UserContextProvider({ children }) {
       localStorage.removeItem('selectedAssistantImage');
       localStorage.removeItem('customAssistantImages');
       localStorage.removeItem('selectedImageIndex');
-      console.log('✅ Logged out successfully');
+      console.log('✅ Logged out');
     }
   }, []);
 
-  // Initialize - check auth on mount (silently)
+  // Initialize - check auth on mount
   useEffect(() => {
     const initAuth = async () => {
-      // First, check if we have localStorage data
+      // Check if we have saved user data
       const savedUser = localStorage.getItem('userData');
+      
       if (savedUser) {
         try {
           const user = JSON.parse(savedUser);
-          // Verify the token is still valid
+          // Try to validate with backend
           const result = await checkAuth(true);
           if (!result.success) {
-            // Token expired, clear localStorage
+            console.log('Saved session expired, clearing...');
             localStorage.removeItem('userData');
           }
         } catch (error) {
-          console.log('Error checking saved auth:', error);
+          console.log('Error checking saved session');
           localStorage.removeItem('userData');
         }
       } else {
-        // No saved user, just do a silent check
+        // No saved user, check auth silently
         await checkAuth(true);
       }
+      
       setLoadingUser(false);
     };
     
@@ -200,7 +207,6 @@ function UserContextProvider({ children }) {
     setUserData,
     loadingUser,
     isAuthenticated,
-    authChecked,
     checkAuth,
     login,
     signup,
