@@ -14,10 +14,11 @@ function App() {
   // Show loading only on initial load
   if (loadingUser) {
     return (
-      <div className="w-full h-screen flex items-center justify-center gradient-bg">
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white/70">Loading your virtual assistant...</p>
+          <p className="text-white/70">Loading Virtual Assistant...</p>
+          <p className="text-white/50 text-sm mt-2">Checking authentication status</p>
         </div>
       </div>
     );
@@ -25,7 +26,7 @@ function App() {
 
   return (
     <Routes>
-      {/* Redirect root to appropriate page */}
+      {/* Root redirect */}
       <Route 
         path="/" 
         element={
@@ -42,6 +43,7 @@ function App() {
         path="/signin" 
         element={!isAuthenticated ? <SignIn /> : <Navigate to="/" />} 
       />
+      
       <Route 
         path="/signup" 
         element={!isAuthenticated ? <SignUp /> : <Navigate to="/" />} 
