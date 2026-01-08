@@ -18,7 +18,19 @@ function App() {
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white/70">Loading Virtual Assistant...</p>
-          <p className="text-white/50 text-sm mt-2">Checking authentication status</p>
+          <p className="text-white/50 text-sm mt-2">Initializing...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't redirect until auth is fully checked
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white/70">Checking authentication...</p>
         </div>
       </div>
     );
