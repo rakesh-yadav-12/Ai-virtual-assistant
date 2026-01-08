@@ -1,13 +1,3 @@
-// src/App.jsx
-import React, { useContext } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
-import SignUp from "./pages/SignUp.jsx";
-import SignIn from "./pages/SignIn.jsx";
-import Customize from "./pages/Customize.jsx";
-import Home from "./pages/Home.jsx";
-import Customize2 from "./pages/Customize2.jsx";
-import { userDataContext } from "./context/UserContext.jsx";
-
 function App() {
   const { loadingUser, isAuthenticated, userData, authChecked } = useContext(userDataContext);
 
@@ -18,33 +8,32 @@ function App() {
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white/70">Loading Virtual Assistant...</p>
-          <p className="text-white/50 text-sm mt-2">Initializing...</p>
+          <p className="text-white/50 text-sm mt-2">Checking authentication status</p>
         </div>
       </div>
     );
   }
 
-  // Don't redirect until auth is fully checked
-  if (!authChecked) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white/70">Checking authentication...</p>
-        </div>
-      </div>
-    );
-  }
+  console.log("🔄 App rendering - Auth status:", {
+    isAuthenticated,
+    hasUserData: !!userData,
+    loadingUser,
+    authChecked
+  });
 
   return (
     <Routes>
-      {/* Root redirect */}
+      {/* Root route - smart redirect */}
       <Route 
         path="/" 
         element={
-          isAuthenticated ? (
-            userData?.assistantName ? <Home /> : <Navigate to="/customize" />
+          isAuthenticated && userData ? (
+            // User is logged in
+            userData.assistantName ? 
+              <Home /> : // Has assistant name, go to home
+              <Customize /> // No assistant name, go to customize
           ) : (
+            // User is not logged in
             <Navigate to="/signin" />
           )
         } 
@@ -53,28 +42,39 @@ function App() {
       {/* Public routes */}
       <Route 
         path="/signin" 
-        element={!isAuthenticated ? <SignIn /> : <Navigate to="/" />} 
+        element={
+          isAuthenticated ? 
+            <Navigate to="/" /> : 
+            <SignIn />
+        } 
       />
       
       <Route 
         path="/signup" 
-        element={!isAuthenticated ? <SignUp /> : <Navigate to="/" />} 
+        element={
+          isAuthenticated ? 
+            <Navigate to="/" /> : 
+            <SignUp />
+        } 
       />
       
       {/* Protected routes */}
       <Route 
         path="/customize" 
-        element={isAuthenticated ? <Customize /> : <Navigate to="/signin" />} 
+        element={
+          isAuthenticated ? 
+            <Customize /> : 
+            <Navigate to="/signin" />
+        } 
       />
       
       <Route 
         path="/customize2" 
-        element={isAuthenticated ? <Customize2 /> : <Navigate to="/signin" />} 
-      />
-      
-      <Route 
-        path="/home" 
-        element={isAuthenticated ? <Home /> : <Navigate to="/signin" />} 
+        element={
+          isAuthenticated ? 
+            <Customize2 /> : 
+            <Navigate to="/signin" />
+        } 
       />
       
       {/* Catch all */}
@@ -82,5 +82,3 @@ function App() {
     </Routes>
   );
 }
-
-export default App;
