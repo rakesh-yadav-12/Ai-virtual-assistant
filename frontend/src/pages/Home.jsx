@@ -1,3 +1,4 @@
+// src/pages/Home.jsx - FIXED VERSION
 import React, { useContext, useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { userDataContext } from "../context/UserContext.jsx";
@@ -45,7 +46,7 @@ function Home() {
     const utterance = new SpeechSynthesisUtterance(text);
     
     // Mobile-friendly voice settings
-    utterance.rate = isMobile.current ? 0.9 : 1.0; // Slower on mobile for better clarity
+    utterance.rate = isMobile.current ? 0.9 : 1.0;
     utterance.pitch = isMobile.current ? 1.0 : 1.0;
     utterance.volume = 1.0;
 
@@ -64,7 +65,6 @@ function Home() {
       setAssistantImageGlow(false);
     };
 
-    // On mobile, wait for user interaction if needed
     window.speechSynthesis.speak(utterance);
   }, []);
 
@@ -133,7 +133,7 @@ function Home() {
         }, 1500);
       }
     } catch (error) {
-      console.error("Command processing error:", error);
+      console.log("Command processing error:", error);
       const errorMsg = "There was an error. Please try again.";
       
       // Remove user message on error
@@ -162,109 +162,125 @@ function Home() {
     }
   }, [getGeminiResponse, speakText]);
 
-  // Initialize speech recognition with mobile optimizations
+  // Initialize speech recognition - FIXED VERSION
   const initSpeechRecognition = useCallback(() => {
     if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-      console.warn("Speech recognition not supported");
+      console.log("Speech recognition not supported");
       setMicPermissionDenied(true);
       return null;
     }
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
     
-    // Mobile-specific settings
-    recognition.continuous = !isMobile.current; // Continuous only on desktop
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
-    recognition.maxAlternatives = 1;
-    
-    // Adjust for mobile
-    if (isMobile.current) {
-      recognition.continuous = false;
-    }
-
-    recognition.onstart = () => {
-      setIsListening(true);
-      setMicPermissionDenied(false);
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-      setWakeWordDetected(false);
+    try {
+      const recognition = new SpeechRecognition();
       
-      // Auto-restart only on desktop, not mobile
-      if (!isMobile.current && recognitionRef.current) {
-        setTimeout(() => {
-          try {
-            recognitionRef.current.start();
-          } catch (err) {
-            console.log("Recognition restart error:", err);
-          }
-        }, 500);
-      }
-    };
-
-    recognition.onresult = (event) => {
-      clearTimeout(silenceTimeoutRef.current);
+      // Mobile-specific settings
+      recognition.continuous = !isMobile.current;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+      recognition.maxAlternatives = 1;
       
-      let finalTranscript = '';
-      let interimTranscript = '';
-
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += transcript;
-        } else {
-          interimTranscript += transcript;
-        }
+      // Adjust for mobile
+      if (isMobile.current) {
+        recognition.continuous = false;
       }
 
-      // Update command display with interim results
-      if (interimTranscript) {
-        setCommand(interimTranscript.trim());
-      }
+      recognition.onstart = () => {
+        console.log("🎤 Speech recognition started");
+        setIsListening(true);
+        setMicPermissionDenied(false);
+      };
 
-      // Process final transcript
-      if (finalTranscript) {
-        setCommand(finalTranscript.trim());
+      recognition.onend = () => {
+        console.log("🎤 Speech recognition ended");
+        setIsListening(false);
+        setWakeWordDetected(false);
         
-        // Check for wake word
-        const lowerTranscript = finalTranscript.toLowerCase().trim();
-        const assistantName = userData?.assistantName?.toLowerCase() || "assistant";
-        
-        if (lowerTranscript.includes(assistantName) || wakeWordDetected) {
-          if (!wakeWordDetected && lowerTranscript.includes(assistantName)) {
-            setWakeWordDetected(true);
-            
-            // Remove wake word from command
-            const commandWithoutWake = lowerTranscript.replace(assistantName, '').trim();
-            if (commandWithoutWake) {
-              handleCommand(commandWithoutWake);
+        // Auto-restart only on desktop
+        if (!isMobile.current && recognitionRef.current) {
+          setTimeout(() => {
+            try {
+              if (recognitionRef.current) {
+                recognitionRef.current.start();
+              }
+            } catch (err) {
+              console.log("Recognition restart skipped");
             }
-          } else if (wakeWordDetected) {
-            handleCommand(finalTranscript.trim());
+          }, 1000);
+        }
+      };
+
+      recognition.onresult = (event) => {
+        clearTimeout(silenceTimeoutRef.current);
+        
+        let finalTranscript = '';
+        let interimTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
           }
         }
+
+        // Update command display with interim results
+        if (interimTranscript) {
+          setCommand(interimTranscript.trim());
+        }
+
+        // Process final transcript
+        if (finalTranscript) {
+          setCommand(finalTranscript.trim());
+          
+          // Check for wake word
+          const lowerTranscript = finalTranscript.toLowerCase().trim();
+          const assistantName = userData?.assistantName?.toLowerCase() || "assistant";
+          
+          if (lowerTranscript.includes(assistantName) || wakeWordDetected) {
+            if (!wakeWordDetected && lowerTranscript.includes(assistantName)) {
+              setWakeWordDetected(true);
+              
+              // Remove wake word from command
+              const commandWithoutWake = lowerTranscript.replace(assistantName, '').trim();
+              if (commandWithoutWake) {
+                handleCommand(commandWithoutWake);
+              }
+            } else if (wakeWordDetected) {
+              handleCommand(finalTranscript.trim());
+            }
+          }
+          
+          // Reset silence timer
+          silenceTimeoutRef.current = setTimeout(() => {
+            setCommand("");
+          }, 2000);
+        }
+      };
+
+      recognition.onerror = (event) => {
+        // Don't show "aborted" errors
+        if (event.error === 'aborted') {
+          console.log("Speech recognition stopped");
+          return;
+        }
         
-        // Reset silence timer
-        silenceTimeoutRef.current = setTimeout(() => {
-          setCommand("");
-        }, 2000);
-      }
-    };
+        console.log("Recognition error:", event.error);
+        setIsListening(false);
+        
+        // Handle permission errors
+        if (event.error === 'not-allowed' || event.error === 'permission-denied') {
+          setMicPermissionDenied(true);
+        }
+      };
 
-    recognition.onerror = (event) => {
-      console.error("Recognition error:", event.error);
-      setIsListening(false);
-      
-      // Handle permission errors
-      if (event.error === 'not-allowed' || event.error === 'permission-denied') {
-        setMicPermissionDenied(true);
-      }
-    };
-
-    return recognition;
+      return recognition;
+    } catch (error) {
+      console.log("Error creating speech recognition:", error);
+      return null;
+    }
   }, [userData?.assistantName, wakeWordDetected, handleCommand]);
 
   // Manual command submission
@@ -275,68 +291,51 @@ function Home() {
     }
   };
 
-  // Start/Stop listening manually (for mobile)
-  const toggleListening = async () => {
+  // Start/Stop listening manually
+  const toggleListening = () => {
     if (isListening) {
       stopListening();
     } else {
-      await startListening();
+      startListening();
     }
   };
 
-  // Start listening with permission check
+  // Start listening
   const startListening = async () => {
-    // On mobile, we need to check permissions differently
-    if (isMobile.current) {
+    if (!recognitionRef.current) {
+      recognitionRef.current = initSpeechRecognition();
+    }
+    
+    if (recognitionRef.current) {
       try {
-        // Request microphone permission
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach(track => track.stop()); // Stop immediately
-        
-        // Initialize recognition
-        if (!recognitionRef.current) {
-          recognitionRef.current = initSpeechRecognition();
-        }
-        
-        // Start recognition with delay for mobile
-        setTimeout(() => {
-          try {
-            if (recognitionRef.current) {
-              recognitionRef.current.start();
-            }
-          } catch (err) {
-            console.log("Mobile start error:", err);
-          }
-        }, 300);
-        
+        await recognitionRef.current.start();
       } catch (error) {
-        console.error("Microphone permission denied:", error);
-        setMicPermissionDenied(true);
-        alert("Please allow microphone access in your browser settings to use voice commands.");
-      }
-    } else {
-      // Desktop
-      if (!recognitionRef.current) {
-        recognitionRef.current = initSpeechRecognition();
-      }
-      
-      try {
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-        recognitionRef.current.start();
-      } catch (error) {
-        console.error("Microphone error:", error);
-        setMicPermissionDenied(true);
+        console.log("Error starting recognition:", error);
+        setIsListening(false);
       }
     }
   };
 
-  // Stop listening
+  // Stop listening - FIXED VERSION
   const stopListening = () => {
     if (recognitionRef.current) {
       try {
-        recognitionRef.current.stop();
+        // Clone the recognition instance
+        const rec = recognitionRef.current;
+        
+        // Remove error handlers to prevent abort errors
+        rec.onerror = () => {};
+        
+        // Stop with delay
+        setTimeout(() => {
+          try {
+            rec.stop();
+          } catch (e) {
+            // Ignore stop errors
+          }
+        }, 50);
       } catch (err) {
-        console.log("Stop error:", err);
+        // Ignore errors
       }
     }
     setIsListening(false);
@@ -373,9 +372,8 @@ function Home() {
   // Initialize on mount
   useEffect(() => {
     if (userData) {
-      // Don't auto-start on mobile - wait for user interaction
+      // Don't auto-start on mobile
       if (!isMobile.current) {
-        // Start recognition on desktop only
         recognitionRef.current = initSpeechRecognition();
         
         const startDesktopRecognition = async () => {
@@ -388,10 +386,10 @@ function Home() {
                 } catch (err) {
                   console.log("Starting recognition...");
                 }
-              }, 800);
+              }, 1000);
             }
           } catch (error) {
-            console.log("Microphone access needed on desktop");
+            console.log("Microphone access needed");
             setMicPermissionDenied(true);
           }
         };
@@ -419,7 +417,6 @@ function Home() {
   // Load voices for speech synthesis
   useEffect(() => {
     if ('speechSynthesis' in window) {
-      // Some browsers need this to populate voices
       setTimeout(() => {
         window.speechSynthesis.getVoices();
       }, 1000);
@@ -443,7 +440,7 @@ function Home() {
       <div className="absolute top-4 right-4 z-50" ref={menuRef}>
         <button
           onClick={() => setMenuOpen(!menuOpen)}
-          className="relative w-12 h-12 rounded-full overflow-hidden border-3 border-blue-500/50 bg-gradient-to-br from-blue-500/20 to-purple-500/20 shadow-xl backdrop-blur-sm transition-all duration-300 hover:scale-105 hover:shadow-blue-500/30 active:scale-9"
+          className="relative w-12 h-12 rounded-full overflow-hidden border-3 border-blue-500/50 bg-gradient-to-br from-blue-500/20 to-purple-500/20 shadow-xl backdrop-blur-sm transition-all duration-300 hover:scale-105 hover:shadow-blue-500/30 active:scale-95"
           aria-label="User menu"
         >
           <img 
@@ -558,22 +555,9 @@ function Home() {
                       </div>
                       <p className="text-sm text-white/70">
                         {micPermissionDenied 
-                          ? "Microphone access denied. Please allow in browser settings." 
+                          ? "Microphone access denied" 
                           : "Microphone is ready for voice commands"}
                       </p>
-                      {micPermissionDenied && (
-                        <button
-                          onClick={() => {
-                            // Guide user to settings
-                            if (isMobile.current) {
-                              alert("Go to browser settings > Site permissions > Microphone, and allow access for this site.");
-                            }
-                          }}
-                          className="mt-2 text-sm text-blue-400 hover:text-blue-300"
-                        >
-                          Fix microphone access
-                        </button>
-                      )}
                     </div>
                     
                     {/* Voice Commands Toggle */}
@@ -596,11 +580,6 @@ function Home() {
                           />
                         </button>
                       </div>
-                      {isMobile.current && (
-                        <p className="text-xs text-yellow-400 mt-2">
-                          On mobile, tap the microphone button below to start listening
-                        </p>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -610,11 +589,11 @@ function Home() {
         )}
       </div>
 
-      {/* Main Content - Centered Assistant Image */}
+      {/* Main Content */}
       <div className="h-full flex flex-col items-center justify-center p-4 pt-20">
         {/* Large Assistant Image */}
         <div className="mb-6 relative">
-          <div className={`relative w-64 h-64 md:w-80 md:h-80 lg:w-60 lg:h-80 rounded-3xl overflow-hidden  transition-all duration-500 ${
+          <div className={`relative w-64 h-64 md:w-80 md:h-80 lg:w-60 lg:h-80 rounded-3xl overflow-hidden transition-all duration-500 ${
             assistantImageGlow 
               ? 'border-blue-500 shadow-[0_0_60px_rgba(59,130,246,0.9)] scale-105' 
               : 'border-white/30'
@@ -632,15 +611,6 @@ function Home() {
             {isListening && (
               <div className="absolute -top-2 -right-2 w-10 h-10 bg-green-500 rounded-full animate-pulse flex items-center justify-center">
                 <div className="w-4 h-4 bg-white rounded-full"></div>
-              </div>
-            )}
-            
-            {/* Speaking animation */}
-            {assistantSpeaking && (
-              <div className="absolute inset-0 rounded-3xl">
-                <div className="absolute inset-0 bg-blue-500/30 animate-ping rounded-3xl"></div>
-                <div className="absolute inset-6 bg-blue-500/20 animate-ping rounded-2xl" style={{animationDelay: '0.2s'}}></div>
-                <div className="absolute inset-12 bg-blue-500/10 animate-ping rounded-xl" style={{animationDelay: '0.4s'}}></div>
               </div>
             )}
           </div>
@@ -673,16 +643,12 @@ function Home() {
                 {message.type === 'user' && (
                   <div className="animate-slideUp">
                     <p className="text-blue-300/80 italic">"{message.text}"</p>
-                    <div className="flex justify-center mt-2">
-                      <div className="w-4 h-1 bg-blue-400/50 rounded-full animate-pulse"></div>
-                    </div>
                   </div>
                 )}
                 
                 {message.type === 'assistant' && (
                   <div className="animate-scaleIn px-4">
                     <p className="text-white leading-relaxed">{message.text}</p>
-                    {/* Show action button if available */}
                     {message.actionUrl && message.requiresAction && (
                       <button
                         onClick={() => window.open(message.actionUrl, '_blank', 'noopener,noreferrer')}
@@ -690,14 +656,6 @@ function Home() {
                       >
                         Open Link →
                       </button>
-                    )}
-                    {/* Small speaking indicator dots */}
-                    {assistantSpeaking && (
-                      <div className="flex justify-center gap-2 mt-4">
-                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{animationDelay: '0.1s'}}></div>
-                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
-                      </div>
                     )}
                   </div>
                 )}
@@ -726,8 +684,7 @@ function Home() {
                     </>
                   ) : (
                     <>
-                      Say "<span className="text-blue-300 font-medium">I am</span>" or "
-                      <span className="text-blue-300 font-medium">{userData.assistantName || "Assistant"}</span>" to activate
+                      Say "<span className="text-blue-300 font-medium">Hey {userData.assistantName || "Assistant"}</span>" to activate
                     </>
                   )}
                 </p>
@@ -738,7 +695,7 @@ function Home() {
             )}
           </div>
 
-          {/* Input Area with Mobile Microphone Button */}
+          {/* Input Area */}
           <form onSubmit={handleSubmit} className="mt-8 relative">
             <div className="relative">
               <input
@@ -748,7 +705,7 @@ function Home() {
                 placeholder={
                   isMobile.current 
                     ? "Type your message here..." 
-                    : `Say "I am" or "${userData.assistantName || 'Assistant'}" to activate...`
+                    : `Say "Hey ${userData.assistantName || 'Assistant'}" to activate...`
                 }
                 className="w-full bg-white/10 border border-white/30 rounded-xl px-4 py-3 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent text-sm backdrop-blur-sm pr-24"
                 disabled={loading}
@@ -772,7 +729,7 @@ function Home() {
                 </button>
               )}
               
-              {/* Send Button (for typing) */}
+              {/* Send Button */}
               <button
                 type="submit"
                 disabled={loading || !command.trim()}
@@ -782,83 +739,9 @@ function Home() {
                 <span>➤</span>
               </button>
             </div>
-            
-            {/* Status Messages */}
-            <div className="mt-2 text-center">
-              {micPermissionDenied && (
-                <p className="text-red-400 text-xs animate-pulse">
-                  ❌ Microphone access denied. Please allow in browser settings.
-                </p>
-              )}
-              
-              {isMobile.current && !micPermissionDenied && (
-                <p className="text-white/70 text-xs">
-                  {isListening ? "🎤 Tap the button again to stop" : "🎤 Tap the microphone to speak"}
-                </p>
-              )}
-              
-              {!isMobile.current && (
-                <p className="text-xs text-white/50">
-                  {isListening ? "🎤 Assistant is listening..." : "💡 Ready for voice commands"}
-                </p>
-              )}
-            </div>
           </form>
         </div>
       </div>
-      
-      {/* Add custom animations for CSS */}
-      <style jsx>{`
-        @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        
-        @keyframes scaleIn {
-          from {
-            opacity: 0;
-            transform: scale(0.98);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-        
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-          }
-          to {
-            opacity: 1;
-          }
-        }
-        
-        .animate-slideUp {
-          animation: slideUp 0.3s ease-out forwards;
-        }
-        
-        .animate-scaleIn {
-          animation: scaleIn 0.3s ease-out forwards;
-        }
-        
-        .animate-fadeIn {
-          animation: fadeIn 0.3s ease-out forwards;
-        }
-        
-        /* Mobile optimizations */
-        @media (max-width: 768px) {
-          .gradient-bg {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-          }
-        }
-      `}</style>
     </div>
   );
 }
