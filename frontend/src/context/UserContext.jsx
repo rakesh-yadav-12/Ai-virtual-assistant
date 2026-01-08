@@ -1,9 +1,44 @@
-// src/context/UserContext.jsx - CLEAN VERSION
+// src/context/UserContext.jsx
 import React, { createContext, useState, useEffect, useCallback } from "react";
+import axios from "axios";
 
 export const userDataContext = createContext();
 
 const serverUrl = "https://ai-virtual-assistant-20b.onrender.com";
+
+// Create a custom axios instance that SILENCES 401 errors
+const createAxiosInstance = () => {
+  const instance = axios.create({
+    baseURL: serverUrl,
+    withCredentials: true,
+    timeout: 10000
+  });
+
+  // Intercept responses to hide 401 errors
+  instance.interceptors.response.use(
+    response => response,
+    error => {
+      // SILENTLY handle 401 errors - don't log them
+      if (error.response?.status === 401) {
+        // Return a custom error that won't log to console
+        return Promise.reject({
+          isAuthError: true,
+          status: 401,
+          message: "Not authenticated"
+        });
+      }
+      
+      // For other errors, you can log them
+      if (error.response?.status >= 500) {
+        console.error("Server error:", error.message);
+      }
+      
+      return Promise.reject(error);
+    }
+  );
+
+  return instance;
+};
 
 function UserContextProvider({ children }) {
   const [userData, setUserData] = useState(() => {
@@ -13,95 +48,76 @@ function UserContextProvider({ children }) {
   const [loadingUser, setLoadingUser] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Custom fetch that handles 401 silently
-  const silentFetch = useCallback(async (endpoint, options = {}) => {
-    const url = `${serverUrl}${endpoint}`;
-    
-    try {
-      const response = await fetch(url, {
-        ...options,
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers
-        }
-      });
-      
-      // Handle 401 on auth check - don't throw error
-      if (response.status === 401 && endpoint === '/api/user/current') {
-        return { ok: false, status: 401, data: { message: "Not authenticated" } };
-      }
-      
-      const data = await response.json();
-      return { ok: response.ok, status: response.status, data };
-      
-    } catch (error) {
-      // Network error - return silent error
-      if (endpoint === '/api/user/current') {
-        return { ok: false, status: 0, data: { error: "Network error" } };
-      }
-      throw error;
-    }
-  }, []);
+  // Create axios instance for this component
+  const axiosInstance = createAxiosInstance();
 
-  // Check authentication
-  const checkAuth = useCallback(async () => {
+  // Check authentication status
+  const checkAuth = useCallback(async (silent = true) => {
     try {
-      const result = await silentFetch('/api/user/current');
+      if (!silent) setLoadingUser(true);
       
-      if (result.ok && result.data._id) {
-        setUserData(result.data);
+      console.log('🔍 Checking authentication status...');
+      
+      const response = await axiosInstance.get("/api/user/current");
+      
+      if (response.data && response.data._id) {
+        console.log('✅ User is authenticated');
+        setUserData(response.data);
         setIsAuthenticated(true);
-        localStorage.setItem('userData', JSON.stringify(result.data));
-        return { success: true, user: result.data };
+        localStorage.setItem('userData', JSON.stringify(response.data));
+        return { success: true, user: response.data };
+      }
+    } catch (error) {
+      // 401 errors are handled silently by the interceptor
+      if (error.isAuthError) {
+        console.log('🔒 User is not authenticated (this is normal)');
+      } else if (!silent) {
+        console.log('Auth check failed:', error.message);
       }
       
-      // Not authenticated - clear data
+      // Clear any stale data
       setUserData(null);
       setIsAuthenticated(false);
       localStorage.removeItem('userData');
-      return { success: false, error: "Not authenticated" };
       
-    } catch (error) {
-      setUserData(null);
-      setIsAuthenticated(false);
-      localStorage.removeItem('userData');
-      return { success: false, error: "Auth check failed" };
+      return { success: false, error: "Not authenticated" };
+    } finally {
+      if (!silent) setLoadingUser(false);
     }
-  }, [silentFetch]);
+    return { success: false, error: "Auth check failed" };
+  }, [axiosInstance]);
 
-  // Login function
+  // Login function - use regular axios to see actual errors
   const login = useCallback(async (email, password) => {
     try {
-      const response = await fetch(`${serverUrl}/api/auth/signin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email, password })
-      });
+      console.log('🔐 Attempting login...');
       
-      const data = await response.json();
+      const response = await axios.post(
+        `${serverUrl}/api/auth/signin`,
+        { email, password },
+        { 
+          withCredentials: true,
+          timeout: 15000
+        }
+      );
       
-      if (response.ok && data.user) {
-        setUserData(data.user);
+      if (response.data.user) {
+        console.log('✅ Login successful!');
+        setUserData(response.data.user);
         setIsAuthenticated(true);
-        localStorage.setItem('userData', JSON.stringify(data.user));
+        localStorage.setItem('userData', JSON.stringify(response.data.user));
         
         // Verify login worked
-        await checkAuth();
+        await checkAuth(true);
         
-        return { success: true, data };
+        return { success: true, data: response.data };
       }
-      
-      return { 
-        success: false, 
-        error: data.message || "Login failed" 
-      };
-      
+      return { success: false, error: "No user data returned" };
     } catch (error) {
+      console.log('Login response:', error.response?.data);
       return { 
         success: false, 
-        error: "Network error. Please try again." 
+        error: error.response?.data?.message || "Login failed. Please check your credentials." 
       };
     }
   }, [checkAuth]);
@@ -109,32 +125,31 @@ function UserContextProvider({ children }) {
   // Signup function
   const signup = useCallback(async (name, email, password) => {
     try {
-      const response = await fetch(`${serverUrl}/api/auth/signup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ name, email, password })
-      });
+      console.log('📝 Creating account...');
       
-      const data = await response.json();
+      const response = await axios.post(
+        `${serverUrl}/api/auth/signup`,
+        { name, email, password },
+        { 
+          withCredentials: true,
+          timeout: 15000
+        }
+      );
       
-      if (response.ok && data.user) {
-        setUserData(data.user);
+      if (response.data.user) {
+        console.log('✅ Account created successfully!');
+        setUserData(response.data.user);
         setIsAuthenticated(true);
-        localStorage.setItem('userData', JSON.stringify(data.user));
+        localStorage.setItem('userData', JSON.stringify(response.data.user));
         
-        return { success: true, data };
+        return { success: true, data: response.data };
       }
-      
-      return { 
-        success: false, 
-        error: data.message || "Signup failed" 
-      };
-      
+      return { success: false, error: "No user data returned" };
     } catch (error) {
+      console.log('Signup response:', error.response?.data);
       return { 
         success: false, 
-        error: "Network error. Please try again." 
+        error: error.response?.data?.message || "Signup failed. Please try again." 
       };
     }
   }, []);
@@ -142,12 +157,9 @@ function UserContextProvider({ children }) {
   // Logout function
   const logout = useCallback(async () => {
     try {
-      await fetch(`${serverUrl}/api/auth/logout`, {
-        method: 'POST',
-        credentials: 'include'
-      });
+      await axios.post(`${serverUrl}/api/auth/logout`, {}, { withCredentials: true });
     } catch (error) {
-      // Silent error
+      console.log('Logout error:', error.message);
     } finally {
       setUserData(null);
       setIsAuthenticated(false);
@@ -155,32 +167,38 @@ function UserContextProvider({ children }) {
       localStorage.removeItem('selectedAssistantImage');
       localStorage.removeItem('customAssistantImages');
       localStorage.removeItem('selectedImageIndex');
+      console.log('✅ Logged out');
     }
   }, []);
 
-  // Initialize
+  // Initialize - check auth on mount
   useEffect(() => {
-    const init = async () => {
+    const initAuth = async () => {
+      // Check if we have saved user data
       const savedUser = localStorage.getItem('userData');
       
       if (savedUser) {
         try {
           const user = JSON.parse(savedUser);
-          const result = await checkAuth();
+          // Try to validate with backend
+          const result = await checkAuth(true);
           if (!result.success) {
+            console.log('Saved session expired, clearing...');
             localStorage.removeItem('userData');
           }
-        } catch {
+        } catch (error) {
+          console.log('Error checking saved session');
           localStorage.removeItem('userData');
         }
       } else {
-        await checkAuth();
+        // No saved user, check auth silently
+        await checkAuth(true);
       }
       
       setLoadingUser(false);
     };
     
-    init();
+    initAuth();
   }, [checkAuth]);
 
   const value = {
