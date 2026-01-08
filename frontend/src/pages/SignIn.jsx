@@ -1,10 +1,9 @@
 import React, { useState, useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { userDataContext } from "../context/UserContext.jsx";
-import axios from "axios";
 
 function SignIn() {
-  const { setUserData, checkAuth } = useContext(userDataContext);
+  const { login, isAuthenticated } = useContext(userDataContext);
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -13,47 +12,47 @@ function SignIn() {
   });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     });
+    setError(""); // Clear error when user types
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!formData.email.trim() || !formData.password) {
-      alert("Please fill in all fields");
+      setError("Please fill in all fields");
       return;
     }
 
     setLoading(true);
+    setError("");
 
     try {
-      const response = await axios.post(
-        "https://ai-virtual-assistant-20b.onrender.com/api/auth/signin",
-        {
-          email: formData.email,
-          password: formData.password
-        },
-        { withCredentials: true }
-      );
-
-      if (response.data.user) {
-        setUserData(response.data.user);
-        await checkAuth();
-        alert("Login successful!");
+      const result = await login(formData.email, formData.password);
+      
+      if (result.success) {
         navigate("/");
+      } else {
+        setError(result.error || "Login failed. Please check your credentials.");
       }
-    } catch (error) {
-      console.error("Login error:", error);
-      alert(error.response?.data?.message || "Login failed. Please check your credentials.");
+    } catch (err) {
+      setError("An unexpected error occurred. Please try again.");
     } finally {
       setLoading(false);
     }
   };
+
+  // If already authenticated, redirect
+  if (isAuthenticated) {
+    navigate("/");
+    return null;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
@@ -96,6 +95,12 @@ function SignIn() {
             <p className="text-white/70">Sign in to your AI assistant</p>
           </div>
 
+          {error && (
+            <div className="mb-6 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
+              <p className="text-red-300 text-sm">{error}</p>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="block text-sm font-medium mb-2 text-white/80">
@@ -109,6 +114,7 @@ function SignIn() {
                 className="input-field"
                 placeholder="Enter your email"
                 required
+                disabled={loading}
               />
             </div>
 
@@ -125,11 +131,13 @@ function SignIn() {
                   className="input-field pr-12"
                   placeholder="Enter your password"
                   required
+                  disabled={loading}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/60 hover:text-white"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/60 hover:text-white disabled:opacity-50"
+                  disabled={loading}
                 >
                   {showPassword ? "🙈" : "👁️"}
                 </button>
@@ -164,6 +172,18 @@ function SignIn() {
               <p className="text-sm text-white/60">
                 Demo credentials: test@example.com / password123
               </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setFormData({
+                    email: "test@example.com",
+                    password: "password123"
+                  });
+                }}
+                className="mt-2 text-xs text-blue-400 hover:text-blue-300"
+              >
+                Click to fill demo credentials
+              </button>
             </div>
           </div>
         </div>
