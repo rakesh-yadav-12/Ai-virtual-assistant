@@ -9,7 +9,6 @@ A full-stack, voice-activated virtual assistant that processes natural language 
 
 ## 🎥 Demo
 
-*   **Live Demo:** [Add your hosted application link here, e.g.,https://ai-virtual-assistant-13f.onrender.com]
 *   **Video Walkthrough:** [https://www.flexclip.com/share/149404459c2YzAcAmuugII1bUjzY7i8XMJP05hwZ.html]
 
 ## ✨ Features
@@ -82,7 +81,7 @@ Here is the visual journey through the application:
 *   Node.js (v18 or higher)
 *   npm or yarn
 *   MongoDB (Local instance or Atlas URI)
-*   API Keys for [Google Gemini AI](https://makersuite.google.com/app/apikey) and [Cloudinary](https://cloudinary.com/)
+
 
 ### Installation & Setup
 
